@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Мой стрим & Чат</title>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
   <style>
     :root { color-scheme: dark; }
     .glass { backdrop-filter: blur(12px); background: rgba(15,23,42,0.6); }
@@ -91,7 +92,7 @@
       <div class="flex items-center justify-between gap-4 px-5 py-4 border-b border-white/5 flex-wrap">
         <div>
           <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Созвон с другом</p>
-          <h2 class="text-xl font-semibold">P2P WebRTC (поделиться ссылкой)</h2>
+          <h2 class="text-xl font-semibold">P2P WebRTC (обмен кодами)</h2>
         </div>
         <div class="flex items-center gap-2 text-xs">
           <span id="callStatus" class="px-3 py-1 rounded-full bg-white/10 border border-white/10 text-slate-200">Ожидает действий</span>
@@ -107,7 +108,7 @@
               <div class="absolute top-3 left-3 px-3 py-1 rounded-full bg-black/50 border border-white/10 text-xs">Видео друга</div>
               <div class="absolute bottom-3 right-3 px-3 py-1 rounded-full bg-black/40 border border-white/10 text-xs text-slate-200">Вы на экране слева</div>
             </div>
-            <p class="text-sm text-slate-300">Используем вашу камеру и P2P WebRTC. Создайте приглашение, отправьте ссылку другу. Друг открывает ссылку, нажимает «Ответить» и присылает вам ответ. Вставьте его — и связь установится.</p>
+            <p class="text-sm text-slate-300">Используем вашу камеру и P2P WebRTC. Создайте приглашение, скопируйте короткий код и отправьте другу. Друг вставляет код, нажимает «Ответить и отправить», присылает вам ответ. Вставьте его — и связь установится.</p>
           </div>
 
           <div class="space-y-4">
@@ -116,15 +117,9 @@
                 <h3 class="font-semibold">Шаг 1. Создать приглашение</h3>
                 <button id="createOfferBtn" class="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm">Создать приглашение</button>
               </div>
-              <label class="text-xs text-slate-400">Скопируйте ссылку и отправьте другу</label>
+              <label class="text-xs text-slate-400">Сжатый код приглашения — скопируйте и отправьте другу</label>
               <div class="flex gap-2">
-                <input id="inviteLink" class="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs" readonly />
-                <button id="copyLink" class="px-3 py-2 rounded-lg bg-white/10 border border-white/10 text-xs">Копия</button>
-                <button id="shareLink" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/70 text-xs">Поделиться</button>
-              </div>
-              <label class="text-xs text-slate-400">Или код приглашения</label>
-              <div class="flex gap-2">
-                <textarea id="inviteOut" rows="2" class="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs"></textarea>
+                <textarea id="inviteOut" rows="2" class="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs" placeholder="Нажмите «Создать приглашение»"></textarea>
                 <button id="copyInvite" class="px-3 py-2 rounded-lg bg-white/10 border border-white/10 text-xs">Копия</button>
               </div>
             </div>
@@ -138,7 +133,7 @@
               <textarea id="inviteIn" rows="2" class="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs" placeholder="Вставьте приглашение друга"></textarea>
               <label class="text-xs text-slate-400">Скопируйте свой ответ и отправьте инициатору</label>
               <div class="flex gap-2">
-                <textarea id="answerOut" rows="2" class="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs"></textarea>
+                <textarea id="answerOut" rows="2" class="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs" placeholder="После «Ответить и отправить»"></textarea>
                 <button id="copyAnswer" class="px-3 py-2 rounded-lg bg-white/10 border border-white/10 text-xs">Копия</button>
               </div>
             </div>
@@ -180,13 +175,10 @@
     const acceptAnswerBtn = document.getElementById('acceptAnswerBtn');
     const resetCall = document.getElementById('resetCall');
     const inviteOut = document.getElementById('inviteOut');
-    const inviteLink = document.getElementById('inviteLink');
     const inviteIn = document.getElementById('inviteIn');
     const answerOut = document.getElementById('answerOut');
     const answerIn = document.getElementById('answerIn');
     const copyInvite = document.getElementById('copyInvite');
-    const copyLink = document.getElementById('copyLink');
-    const shareLink = document.getElementById('shareLink');
     const copyAnswer = document.getElementById('copyAnswer');
 
     const demoFallback = 'https://cdn.coverr.co/videos/coverr-tech-meeting-1607/1080p.mp4';
@@ -400,13 +392,44 @@
       });
     }
 
+    function uint8ToBase64(uint8) {
+      let binary = '';
+      for (let i = 0; i < uint8.length; i++) {
+        binary += String.fromCharCode(uint8[i]);
+      }
+      return btoa(binary);
+    }
+
+    function base64ToUint8(str) {
+      const bin = atob(str);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      return arr;
+    }
+
     function buildPackage(desc) {
-      return btoa(JSON.stringify({ sdp: desc, candidates: gatheredCandidates }));
+      const payload = JSON.stringify({ sdp: desc, candidates: gatheredCandidates });
+      if (window.pako) {
+        const compressed = pako.deflate(payload);
+        return uint8ToBase64(compressed);
+      }
+      return btoa(payload);
     }
 
     function parsePackage(str) {
       try {
-        const parsed = JSON.parse(atob(str.trim()));
+        const trimmed = str.trim();
+        let jsonText = '';
+        if (window.pako) {
+          try {
+            jsonText = pako.inflate(base64ToUint8(trimmed), { to: 'string' });
+          } catch (e) {
+            jsonText = atob(trimmed);
+          }
+        } else {
+          jsonText = atob(trimmed);
+        }
+        const parsed = JSON.parse(jsonText);
         parsed.sdp = new RTCSessionDescription(parsed.sdp);
         parsed.candidates = (parsed.candidates || []).map(c => new RTCIceCandidate(c));
         return parsed;
@@ -449,8 +472,7 @@
         await waitForIceComplete(peer);
         const pkg = buildPackage(peer.localDescription);
         inviteOut.value = pkg;
-        inviteLink.value = `${location.origin}${location.pathname}#invite=${pkg}`;
-        setCallStatus('Скопируйте ссылку и отправьте другу', 'success');
+        setCallStatus('Скопируйте короткий код и отправьте другу', 'success');
       } catch (err) {
         console.error(err);
         setCallStatus('Не удалось создать приглашение', 'error');
@@ -515,29 +537,7 @@
     answerBtn.addEventListener('click', answerInvite);
     acceptAnswerBtn.addEventListener('click', acceptAnswer);
     copyInvite.addEventListener('click', () => copyToClipboard(inviteOut));
-    copyLink.addEventListener('click', () => copyToClipboard(inviteLink));
     copyAnswer.addEventListener('click', () => copyToClipboard(answerOut));
-
-    shareLink.addEventListener('click', async () => {
-      if (!inviteLink.value) return setCallStatus('Сначала создайте приглашение', 'error');
-      if (navigator.share) {
-        try {
-          await navigator.share({ title: 'P2P звонок', text: 'Зайди по ссылке, чтобы созвониться', url: inviteLink.value });
-          setCallStatus('Ссылка отправлена', 'success');
-        } catch (err) {
-          setCallStatus('Не удалось поделиться', 'error');
-        }
-      } else {
-        copyToClipboard(inviteLink);
-      }
-    });
-
-    // Если страница открыта по ссылке-приглашению, заполнить автоматически
-    if (location.hash.startsWith('#invite=')) {
-      const payload = location.hash.replace('#invite=', '');
-      inviteIn.value = payload;
-      setCallStatus('Получено приглашение, нажмите «Ответить и отправить»', 'info');
-    }
 
     // Автостарт камеры (сразу попросим разрешение)
     startCamera();
