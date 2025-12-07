@@ -222,7 +222,7 @@
                 </div>
             </section>
 
-            <!-- Right Side: Chat (Restored) -->
+            <!-- Right Side: Chat -->
             <aside class="w-80 bg-[#18181b] border-l border-[#2d2d30] flex flex-col shrink-0 hidden md:flex">
                 <div class="h-12 border-b border-[#2d2d30] flex items-center justify-center gap-2">
                     <h2 class="font-semibold text-sm uppercase tracking-wider text-gray-300">Чат трансляции</h2>
@@ -267,16 +267,42 @@
         import { getFirestore, doc, setDoc, onSnapshot, updateDoc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
-        // setLogLevel('debug'); // Uncomment for detailed debug logs
+        // setLogLevel('debug'); // Раскомментируйте для подробных логов
 
         // === GEMINI API CONFIGURATION (for Chat and TTS) ===
-        const apiKey = "";
+        const apiKey = ""; // API ключ для Gemini будет автоматически предоставлен средой Canvas, если вы его не укажете
         const textApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
         const ttsApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
 
         // === GLOBAL VARIABLES & FIREBASE INIT ===
+        // __app_id - это переменная, предоставляемая средой Canvas. На GitHub она будет 'default-app-id'.
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        
+        // =================================================================
+        // !!! ОЧЕНЬ ВАЖНО: ВСТАВЬТЕ СВОЮ КОНФИГУРАЦИЮ FIREBASE ЗДЕСЬ !!!
+        // =================================================================
+        // ЭТОТ ОБЪЕКТ manualFirebaseConfig ДОЛЖЕН БЫТЬ ЗАМЕНЕН НА ВАШИ РЕАЛЬНЫЕ 
+        // КЛЮЧИ (JSON) ИЗ НАСТРОЕК ВАШЕГО ПРОЕКТА FIREBASE CONSOLE.
+        
+        // Пример структуры (замените все значения в кавычках на свои!):
+        /*
+        const manualFirebaseConfig = {
+             apiKey: "AIzaSyB********************", 
+             authDomain: "my-webrtc-project.firebaseapp.com",
+             projectId: "my-webrtc-project-12345",
+             storageBucket: "my-webrtc-project.appspot.com",
+             messagingSenderId: "1234567890",
+             appId: "1:1234567890:web:abcdef123456"
+        };
+        */
+        const manualFirebaseConfig = {}; // <--- ЗАМЕНИТЕ ЭТОТ ПУСТОЙ ОБЪЕКТ НА ВАШУ КОНФИГУРАЦИЮ!
+
+        const firebaseConfig = 
+            (typeof __firebase_config !== 'undefined' && Object.keys(JSON.parse(__firebase_config)).length > 0)
+            ? JSON.parse(__firebase_config)
+            : manualFirebaseConfig;
+        // =================================================================
+
 
         let app;
         let db;
@@ -1085,15 +1111,22 @@
         
         async function initFirebase() {
             try {
+                if (Object.keys(firebaseConfig).length === 0) {
+                     // Special check for GitHub Pages deployment
+                     throw new Error("Missing Firebase Configuration. Please replace the empty object in 'manualFirebaseConfig' inside the script with your actual Firebase project settings (apiKey, projectId, etc.).");
+                }
+                
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
                 
+                // __initial_auth_token - это переменная, предоставляемая средой Canvas, не существует на GitHub Pages
                 const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : undefined;
 
                 if (initialAuthToken) {
                     await signInWithCustomToken(auth, initialAuthToken);
                 } else {
+                    // Используем анонимный вход для пользователей на GitHub Pages
                     await signInAnonymously(auth);
                 }
                 
@@ -1118,7 +1151,16 @@
 
             } catch (error) {
                 console.error("Firebase Initialization Error:", error);
-                chatStatusText.textContent = `Ошибка Firebase: ${error.code}`;
+                
+                let displayMessage = `Ошибка Firebase: ${error.message || error.code}`;
+                if (error.message.includes("Missing Firebase Configuration")) {
+                    displayMessage = `ОШИБКА КОНФИГУРАЦИИ: Firebase config пуст. Пожалуйста, вставьте JSON-объект в блок manualFirebaseConfig в коде.`;
+                }
+                chatStatusText.textContent = displayMessage;
+                
+                // Keep buttons disabled if auth fails
+                btnCreateCall.disabled = true;
+                btnJoinCall.disabled = true;
             }
         }
         
