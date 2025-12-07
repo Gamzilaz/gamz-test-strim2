@@ -3,594 +3,607 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Видеосвязь и Чат (WebRTC + Firebase)</title>
+  <title>Стрим с чатом и созвоном</title>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <style>
-    :root { color-scheme: dark; }
-    /* Стиль "стекло" для прозрачности */
-    .glass { backdrop-filter: blur(16px); background: rgba(15,23,42,0.8); }
-    /* Стили для прокрутки */
-    .scrollbar::-webkit-scrollbar { width: 8px; }
-    .scrollbar::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.6); border-radius: 12px; }
-    /* Стили для маленького локального видео */
-    #localVideo {
-      position: absolute;
-      top: 1rem;
-      right: 1rem;
-      width: 150px;
-      height: 100px;
-      border-radius: 12px;
-      object-fit: cover;
-      border: 3px solid rgba(255, 255, 255, 0.4);
-      z-index: 10;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-      transition: transform 0.3s ease;
-      cursor: pointer;
+    body {
+      background: radial-gradient(circle at top, #1f2937 0, #020617 55%, #000 100%);
     }
-    #localVideo:hover {
-      transform: scale(1.05);
+    .glass {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+    }
+    .scroll-thin::-webkit-scrollbar {
+      width: 6px;
+    }
+    .scroll-thin::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .scroll-thin::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.6);
+      border-radius: 999px;
+    }
+    video {
+      background: #020617;
     }
   </style>
 </head>
-<body class="min-h-screen bg-slate-950 text-slate-100">
-  <!-- Фон с градиентами -->
-  <div class="fixed inset-0 -z-10 overflow-hidden">
-    <div class="absolute inset-0 bg-gradient-to-br from-indigo-700/30 via-slate-900 to-fuchsia-800/20"></div>
-    <div class="absolute w-[900px] h-[900px] -top-40 -left-40 rounded-full bg-indigo-500/20 blur-[150px]"></div>
-    <div class="absolute w-[700px] h-[700px] -bottom-32 -right-32 rounded-full bg-fuchsia-500/20 blur-[150px]"></div>
-  </div>
-
-  <header class="flex items-center justify-between px-6 py-4 border-b border-white/10 glass sticky top-0 z-20">
+<body class="min-h-screen text-slate-100 flex flex-col">
+  <header class="px-4 sm:px-8 py-4 flex items-center justify-between">
     <div class="flex items-center gap-3">
-      <div class="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center font-bold text-xl">📞</div>
+      <div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-500 via-sky-500 to-emerald-400 flex items-center justify-center text-xs font-bold tracking-tight">
+        LIVE
+      </div>
       <div>
-        <p class="text-sm uppercase tracking-[0.25em] text-slate-300">Режим: <span id="authStatus" class="font-semibold text-white">Авторизация...</span></p>
-        <h1 class="text-2xl font-semibold">WebRTC Связь</h1>
+        <h1 class="text-lg sm:text-2xl font-semibold tracking-tight">Мой стрим + созвон с другом</h1>
+        <p class="text-xs sm:text-sm text-slate-400">Камера, чат и приватный видеозвонок прямо в браузере</p>
       </div>
     </div>
-    <div class="flex items-center gap-3 text-sm">
-      <div class="px-3 py-1 rounded-full bg-white/10 border border-white/10">ID Пользователя: <span id="userIdDisplay" class="font-mono text-xs">...</span></div>
-      <div class="px-3 py-1 rounded-full bg-red-600/20 border border-red-400/40 text-red-100 hidden" id="connectionStatus">ОФФЛАЙН</div>
-      <div class="px-3 py-1 rounded-full bg-green-600/20 border border-green-400/40 text-green-100 hidden" id="connectedStatus">СОЕДИНЕНО</div>
+    <div class="hidden sm:flex items-center gap-3 text-xs text-slate-300">
+      <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900/70 border border-slate-600/60">
+        <span class="relative flex h-2.5 w-2.5 mr-0.5">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-500 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+        </span>
+        <span class="font-medium">Live</span>
+      </div>
+      <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900/70 border border-slate-700/70">
+        <span class="inline-flex h-2 w-2 rounded-full bg-emerald-400"></span>
+        <span>Зрителей: <span id="viewerCount" class="font-semibold">1</span></span>
+      </div>
     </div>
   </header>
 
-  <main class="grid grid-cols-1 xl:grid-cols-3 gap-6 p-6 max-w-6xl mx-auto">
-    <!-- Секция Видео -->
-    <section class="xl:col-span-2 glass border border-white/10 rounded-2xl overflow-hidden shadow-2xl shadow-indigo-900/30">
-      <div class="relative aspect-video bg-slate-900 flex items-center justify-center">
-        <!-- Основное видео (УДАЛЕННЫЙ друг) -->
-        <video id="remoteVideo" class="w-full h-full object-cover" autoplay playsinline></video>
-        
-        <!-- Локальное видео (ваш предпросмотр) -->
-        <video id="localVideo" class="hidden" autoplay muted playsinline></video> 
-
-        <div class="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent pointer-events-none"></div>
-        <div class="absolute bottom-4 left-4 px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-sm" id="roomLabel">ID Комнаты: <span id="currentRoomIdDisplay" class="font-mono">Нет</span></div>
-        <div class="absolute bottom-4 right-4 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-slate-200">
-          <span id="videoStatusText">Ожидание подключения...</span>
+  <main class="flex-1 px-4 sm:px-8 pb-6 flex flex-col lg:flex-row gap-4 sm:gap-6">
+    <!-- Левая колонка: локальный стрим + созвон -->
+    <section class="flex-1 flex flex-col gap-4 min-w-0">
+      <!-- Мой стрим -->
+      <div class="glass rounded-3xl p-3 sm:p-4 shadow-xl flex flex-col gap-3">
+        <div class="flex items-center justify-between mb-1">
+          <div>
+            <h2 class="text-base sm:text-lg font-semibold tracking-tight flex items-center gap-2">
+              <span class="inline-flex h-2.5 w-2.5 rounded-full bg-rose-500 shadow-[0_0_15px_rgba(248,113,113,0.9)]"></span>
+              Моя камера (стрим)
+            </h2>
+            <p class="text-xs sm:text-sm text-slate-400">Картинка, которую видите вы и ваши зрители</p>
+          </div>
+          <button id="toggleCamera" class="px-3 py-1.5 rounded-full bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 text-xs sm:text-sm font-medium shadow-lg shadow-indigo-500/30 transition flex items-center gap-1.5">
+            <span id="cameraBtnDot" class="inline-flex h-2 w-2 rounded-full bg-emerald-400"></span>
+            <span id="cameraBtnLabel">Включить камеру</span>
+          </button>
+        </div>
+        <div class="relative rounded-2xl overflow-hidden border border-slate-700/70 bg-black aspect-video max-h-[60vh]">
+          <video id="localVideo" class="w-full h-full object-cover" autoplay playsinline muted></video>
+          <div id="localVideoOverlay" class="absolute inset-0 flex flex-col items-center justify-center text-center text-slate-300 text-xs sm:text-sm px-4 pointer-events-none">
+            <p class="font-medium mb-1">Разрешите доступ к камере, чтобы видеть себя в стриме.</p>
+            <p class="text-slate-400">Если что-то пошло не так, нажмите «Включить камеру» ещё раз.</p>
+          </div>
+          <div class="absolute top-3 left-3 flex items-center gap-2 text-[10px] sm:text-xs px-2 py-1 rounded-full bg-black/70 border border-slate-700/80">
+            <span class="inline-flex h-2 w-2 rounded-full bg-rose-500"></span>
+            <span>LIVE • <span id="streamResolution">—</span></span>
+          </div>
+          <div class="absolute bottom-3 right-3 flex items-center gap-2">
+            <button id="muteToggle" class="h-8 w-8 rounded-full bg-black/70 hover:bg-black/90 text-slate-200 flex items-center justify-center text-lg leading-none border border-slate-600/80 transition" title="Вкл/выкл звук на стриме (для зрителей)">
+              🔇
+            </button>
+            <button id="pipToggle" class="h-8 w-8 rounded-full bg-black/70 hover:bg-black/90 text-slate-200 flex items-center justify-center text-xs border border-slate-600/80 transition" title="Картинка-в-картинке">
+              PiP
+            </button>
+            <button id="fsToggle" class="h-8 w-8 rounded-full bg-black/70 hover:bg-black/90 text-slate-200 flex items-center justify-center text-base border border-slate-600/80 transition" title="На весь экран">
+              ⛶
+            </button>
+          </div>
         </div>
       </div>
 
-      <div class="p-4 border-t border-white/5 flex flex-col md:flex-row items-center justify-between bg-slate-900/60 flex-wrap gap-4">
-        
-        <!-- Управление комнатой -->
-        <div class="flex items-center gap-3 w-full md:w-auto">
-          <input id="roomIdInput" type="text" placeholder="Введите ID комнаты" class="px-3 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-indigo-400/60 w-full md:w-auto min-w-[200px]" />
-          <button id="createRoomBtn" class="px-4 py-2 rounded-lg bg-indigo-600 border border-indigo-500 hover:bg-indigo-500 transition shadow-lg shadow-indigo-900/40">➕ Создать</button>
-          <button id="joinRoomBtn" class="px-4 py-2 rounded-lg bg-fuchsia-600 border border-fuchsia-500 hover:bg-fuchsia-500 transition shadow-lg shadow-fuchsia-900/40">🔗 Присоединиться</button>
+      <!-- Созвон с другом (WebRTC) -->
+      <div class="glass rounded-3xl p-3 sm:p-4 shadow-xl flex flex-col gap-3">
+        <div class="flex items-center justify-between mb-1">
+          <div>
+            <h2 class="text-base sm:text-lg font-semibold tracking-tight">Созвон с другом (экспериментально)</h2>
+            <p class="text-xs sm:text-sm text-slate-400">Отправьте другу ссылку на эту страницу и используйте общий код комнаты.</p>
+          </div>
         </div>
-
-        <!-- Кнопки управления медиа -->
-        <div class="flex items-center gap-2 text-sm">
-          <button id="camToggleBtn" class="px-3 py-1 rounded-lg bg-white/10 border border-white/10 hover:bg-white/15 transition">📹 Камера (ВКЛ)</button>
-          <button id="micToggleBtn" class="px-3 py-1 rounded-lg bg-white/10 border border-white/10 hover:bg-white/15 transition">🎤 Микрофон (ВКЛ)</button>
-          <button id="hangupBtn" class="px-3 py-1 rounded-lg bg-red-600 border border-red-500 hover:bg-red-500 transition" disabled>❌ Завершить</button>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <!-- Мой поток для звонка -->
+          <div class="space-y-2">
+            <p class="text-xs text-slate-400">Вы в звонке</p>
+            <div class="relative rounded-2xl overflow-hidden border border-slate-700/70 bg-black aspect-video">
+              <video id="callLocalVideo" class="w-full h-full object-cover" autoplay playsinline muted></video>
+              <div class="absolute top-2 left-2 text-[10px] px-2 py-1 rounded-full bg-black/70 border border-slate-700/80 text-slate-200">
+                Вы
+              </div>
+            </div>
+          </div>
+          <!-- Друг -->
+          <div class="space-y-2">
+            <p class="text-xs text-slate-400">Друг</p>
+            <div class="relative rounded-2xl overflow-hidden border border-slate-700/70 bg-black aspect-video">
+              <video id="remoteVideo" class="w-full h-full object-cover" autoplay playsinline></video>
+              <div class="absolute top-2 left-2 text-[10px] px-2 py-1 rounded-full bg-black/70 border border-slate-700/80 text-slate-200">
+                Друг
+              </div>
+              <div id="remotePlaceholder" class="absolute inset-0 flex items-center justify-center text-center text-xs text-slate-400 px-3">
+                Ожидаем подключение друга… Он увидит ваш запрос, когда введёт тот же код комнаты.
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Панель управления звонком -->
+        <div class="mt-2 border-t border-slate-700/70 pt-3 flex flex-col gap-2 text-xs sm:text-sm">
+          <div class="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <div class="flex-1 flex items-center gap-2">
+              <label for="roomCode" class="whitespace-nowrap text-slate-300">Код комнаты:</label>
+              <input id="roomCode" type="text" placeholder="например, my-room-123" class="flex-1 px-2 py-1 rounded-lg bg-slate-900/80 border border-slate-700/80 text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+            </div>
+            <div class="flex gap-2">
+              <button id="createOffer" class="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-xs sm:text-sm font-medium transition">Создать звонок</button>
+              <button id="answerOffer" class="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 active:bg-slate-500 text-xs sm:text-sm font-medium transition">Подключиться</button>
+              <button id="hangupCall" class="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-xs sm:text-sm font-medium transition">Завершить</button>
+            </div>
+          </div>
+          <p class="text-[11px] sm:text-xs text-slate-400">
+            Как использовать: выберите уникальный <span class="font-semibold">код комнаты</span> и договоритесь о нём с другом. Один нажимает «Создать звонок», второй — «Подключиться». Для обмена служебными данными используется временное хранилище <span class="font-mono">localStorage</span> в рамках этой комнаты (подходит только для тестов, не для реального продакшена).
+          </p>
+          <p id="callStatus" class="text-[11px] sm:text-xs text-slate-300"></p>
         </div>
       </div>
     </section>
 
-    <!-- Секция Чат -->
-    <aside class="glass border border-white/10 rounded-2xl shadow-2xl shadow-indigo-900/30 flex flex-col h-[70vh] xl:h-[82vh]">
-      <div class="flex items-center justify-between px-4 py-3 border-b border-white/5">
+    <!-- Правая колонка: чат -->
+    <aside class="w-full lg:w-80 xl:w-96 glass rounded-3xl p-3 sm:p-4 shadow-xl flex flex-col max-h-[80vh]">
+      <div class="flex items-center justify-between mb-2">
         <div>
-          <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Чат</p>
-          <h2 class="text-xl font-semibold">Сообщения комнаты</h2>
+          <h2 class="text-base sm:text-lg font-semibold tracking-tight">Чат</h2>
+          <p class="text-xs text-slate-400">Общение со зрителями во время стрима</p>
         </div>
-        <div class="flex items-center gap-2">
-          <select id="userSelect" class="bg-white/10 border border-white/10 rounded-lg px-2 py-1 text-sm focus:outline-none">
-            <option>Alex</option>
-            <option>Maria</option>
-            <option>DevGuru</option>
-            <option>Guest</option>
-          </select>
-          <button id="clearChatBtn" class="text-xs px-2 py-1 rounded bg-white/10 border border-white/10 hover:bg-white/15">Очистить Локально</button>
+        <div class="flex items-center gap-2 text-[11px] text-slate-400">
+          <label class="flex items-center gap-1">
+            <span>Я как</span>
+            <select id="userRole" class="bg-slate-900/80 border border-slate-700/80 rounded-full px-2 py-0.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500">
+              <option value="host">Стример</option>
+              <option value="viewer">Зритель</option>
+            </select>
+          </label>
         </div>
       </div>
 
-      <div id="chat" class="flex-1 overflow-y-auto p-4 space-y-3 scrollbar">
-        <p class="text-center text-sm text-slate-500 mt-4">Чат будет активен после создания или присоединения к комнате.</p>
+      <div id="chatMessages" class="flex-1 overflow-y-auto scroll-thin space-y-2 pr-1 text-xs sm:text-sm">
+        <!-- Сообщения будут добавляться сюда -->
       </div>
 
-      <div class="p-4 border-t border-white/5 space-y-2">
+      <div class="mt-2 border-t border-slate-700/70 pt-2 flex flex-col gap-2">
         <div class="flex gap-2">
-          <input id="messageInput" type="text" placeholder="Напишите сообщение..." class="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-indigo-400/60" disabled />
-          <button id="sendBtn" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 transition shadow-lg shadow-indigo-900/40" disabled>Отправить</button>
+          <input
+            id="chatInput"
+            type="text"
+            placeholder="Напишите сообщение и нажмите Enter…"
+            class="flex-1 px-3 py-1.5 rounded-full bg-slate-900/80 border border-slate-700/80 text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          />
+          <button
+            id="sendBtn"
+            class="px-3 py-1.5 rounded-full bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 text-xs sm:text-sm font-medium transition"
+          >
+            Отправить
+          </button>
+        </div>
+        <div class="flex items-center justify-between text-[11px] text-slate-500">
+          <span>Enter — отправить, Shift+Enter — новая строка</span>
+          <button id="clearChat" class="text-slate-400 hover:text-rose-400 transition">Очистить чат</button>
         </div>
       </div>
     </aside>
   </main>
 
-  <!-- Firebase Import -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, getDoc, setDoc, addDoc, onSnapshot, collection, deleteDoc, updateDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  <footer class="px-4 sm:px-8 py-3 text-[11px] sm:text-xs text-slate-500 flex items-center justify-between border-t border-slate-800/80">
+    <span>Локальный демо-стрим + WebRTC созвон (только в этом браузере / вкладке).</span>
+    <span>Разрешите доступ к камере и микрофону для полного функционала.</span>
+  </footer>
 
-    // --- ГЛОБАЛЬНЫЕ КОНСТАНТЫ И ПЕРЕМЕННЫЕ FIREBASE ---
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+  <script>
+    // ====================== БЛОК: СТРИМ (МОЯ КАМЕРА) ======================
+    const localVideo = document.getElementById('localVideo');
+    const localVideoOverlay = document.getElementById('localVideoOverlay');
+    const toggleCameraBtn = document.getElementById('toggleCamera');
+    const cameraBtnLabel = document.getElementById('cameraBtnLabel');
+    const cameraBtnDot = document.getElementById('cameraBtnDot');
+    const streamResolutionEl = document.getElementById('streamResolution');
+    const muteToggle = document.getElementById('muteToggle');
+    const pipToggle = document.getElementById('pipToggle');
+    const fsToggle = document.getElementById('fsToggle');
+    const viewerCountEl = document.getElementById('viewerCount');
 
-    let app, auth, db;
-    let userId = 'anon';
-    let isAuthReady = false;
-    const PUBLIC_COLLECTION_PATH = `/artifacts/${appId}/public/data`;
-    // ---------------------------------------------------
+    let localStream = null;
+    let isMuted = true; // для зрителей (по сути выключаем аудио треки)
 
-    // --- ЭЛЕМЕНТЫ DOM (Обновленные/Новые) ---
-    const localVideoEl = document.getElementById('localVideo');
-    const remoteVideoEl = document.getElementById('remoteVideo');
-    const roomIdInput = document.getElementById('roomIdInput');
-    const createRoomBtn = document.getElementById('createRoomBtn');
-    const joinRoomBtn = document.getElementById('joinRoomBtn');
-    const camToggleBtn = document.getElementById('camToggleBtn');
-    const micToggleBtn = document.getElementById('micToggleBtn');
-    const hangupBtn = document.getElementById('hangupBtn');
-    const videoStatusText = document.getElementById('videoStatusText');
-    const currentRoomIdDisplay = document.getElementById('currentRoomIdDisplay');
-    const connectionStatusEl = document.getElementById('connectionStatus');
-    const connectedStatusEl = document.getElementById('connectedStatus');
-    const authStatusEl = document.getElementById('authStatus');
-    const userIdDisplay = document.getElementById('userIdDisplay');
+    async function startLocalStream() {
+      try {
+        if (localStream) {
+          localStream.getTracks().forEach(t => t.stop());
+        }
+        const constraints = {
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 30 }
+          },
+          audio: true
+        };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        localStream = stream;
+        localVideo.srcObject = stream;
+        localVideoOverlay.classList.add('hidden');
+        cameraBtnLabel.textContent = 'Перезапустить камеру';
+        cameraBtnDot.classList.remove('bg-rose-500');
+        cameraBtnDot.classList.add('bg-emerald-400');
 
-    const chat = document.getElementById('chat');
-    const messageInput = document.getElementById('messageInput');
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack) {
+          const s = videoTrack.getSettings();
+          streamResolutionEl.textContent = `${s.width || ''}×${s.height || ''}`.trim() || 'камера';
+        } else {
+          streamResolutionEl.textContent = 'камера';
+        }
+
+        updateAudioState();
+      } catch (err) {
+        console.error('Ошибка доступа к камере/микрофону', err);
+        localVideoOverlay.classList.remove('hidden');
+        localVideoOverlay.textContent = 'Не удалось получить доступ к камере/микрофону. Проверьте разрешения браузера.';
+        cameraBtnLabel.textContent = 'Повторить попытку';
+        cameraBtnDot.classList.remove('bg-emerald-400');
+        cameraBtnDot.classList.add('bg-rose-500');
+        streamResolutionEl.textContent = 'ошибка';
+      }
+    }
+
+    function updateAudioState() {
+      if (!localStream) return;
+      localStream.getAudioTracks().forEach(track => {
+        track.enabled = !isMuted;
+      });
+      muteToggle.textContent = isMuted ? '🔇' : '🔊';
+    }
+
+    toggleCameraBtn.addEventListener('click', startLocalStream);
+
+    muteToggle.addEventListener('click', () => {
+      isMuted = !isMuted;
+      updateAudioState();
+    });
+
+    pipToggle.addEventListener('click', async () => {
+      try {
+        if (document.pictureInPictureElement) {
+          await document.exitPictureInPicture();
+        } else if (localVideo.requestPictureInPicture) {
+          await localVideo.requestPictureInPicture();
+        }
+      } catch (err) {
+        console.error('PiP error', err);
+      }
+    });
+
+    fsToggle.addEventListener('click', () => {
+      const container = localVideo.parentElement;
+      if (!document.fullscreenElement) {
+        container.requestFullscreen?.();
+      } else {
+        document.exitFullscreen?.();
+      }
+    });
+
+    // Имитируем небольшое кол-во зрителей
+    function simulateViewers() {
+      const base = 1 + Math.floor(Math.random() * 3);
+      viewerCountEl.textContent = base.toString();
+    }
+    simulateViewers();
+    setInterval(simulateViewers, 15000);
+
+    // Авто-запуск попытки включить камеру
+    if (navigator.mediaDevices?.getUserMedia) {
+      startLocalStream();
+    } else {
+      localVideoOverlay.textContent = 'Ваш браузер не поддерживает getUserMedia. Попробуйте современный Chromium/Firefox/Safari.';
+    }
+
+    // ====================== БЛОК: ЧАТ ======================
+    const chatMessages = document.getElementById('chatMessages');
+    const chatInput = document.getElementById('chatInput');
     const sendBtn = document.getElementById('sendBtn');
-    const userSelect = document.getElementById('userSelect');
-    // ----------------------------------------
+    const clearChatBtn = document.getElementById('clearChat');
+    const userRoleSelect = document.getElementById('userRole');
 
-    // --- ПЕРЕМЕННЫЕ WEBRTC ---
-    const configuration = {
+    const initialMessages = [
+      { role: 'viewer', name: 'Alex', text: 'Привет! Картинка и звук есть 👍' },
+      { role: 'host', name: 'Вы', text: 'Отлично! Если что, пишите вопросы в чат.' },
+      { role: 'viewer', name: 'Mira', text: 'Сделай чуть громче, пожалуйста.' }
+    ];
+
+    function createMessageElement({ role, name, text, self = false }) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'flex flex-col gap-0.5';
+
+      const header = document.createElement('div');
+      header.className = 'flex items-center gap-1.5 text-[11px]';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = name;
+      nameSpan.className = 'font-medium ' + (role === 'host' ? 'text-emerald-300' : 'text-sky-300');
+
+      const badge = document.createElement('span');
+      badge.className = 'px-1.5 py-0.5 rounded-full text-[10px] border';
+      if (role === 'host') {
+        badge.textContent = 'Стример';
+        badge.classList.add('bg-emerald-500/10', 'border-emerald-400/60', 'text-emerald-200');
+      } else {
+        badge.textContent = 'Зритель';
+        badge.classList.add('bg-sky-500/10', 'border-sky-400/60', 'text-sky-200');
+      }
+
+      const time = document.createElement('span');
+      const now = new Date();
+      time.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      time.className = 'text-[10px] text-slate-500 ml-auto';
+
+      header.appendChild(nameSpan);
+      header.appendChild(badge);
+      header.appendChild(time);
+
+      const body = document.createElement('div');
+      body.className = 'px-2.5 py-1.5 rounded-2xl text-[12px] sm:text-xs max-w-full break-words border';
+      if (role === 'host') {
+        body.classList.add('bg-emerald-500/10', 'border-emerald-500/30');
+      } else if (self) {
+        body.classList.add('bg-indigo-500/10', 'border-indigo-500/30');
+      } else {
+        body.classList.add('bg-slate-800/80', 'border-slate-600/60');
+      }
+      body.textContent = text;
+
+      wrapper.appendChild(header);
+      wrapper.appendChild(body);
+      return wrapper;
+    }
+
+    function addMessage(msg) {
+      const el = createMessageElement(msg);
+      chatMessages.appendChild(el);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    initialMessages.forEach(addMessage);
+
+    function sendMessage() {
+      const text = chatInput.value.trim();
+      if (!text) return;
+      const role = userRoleSelect.value;
+      const isHost = role === 'host';
+      addMessage({
+        role,
+        name: isHost ? 'Вы' : 'Гость',
+        text,
+        self: true
+      });
+      chatInput.value = '';
+      chatInput.focus();
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+
+    chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    clearChatBtn.addEventListener('click', () => {
+      chatMessages.innerHTML = '';
+    });
+
+    // ====================== БЛОК: WEBRTC СОЗВОН ======================
+    const callLocalVideo = document.getElementById('callLocalVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+    const remotePlaceholder = document.getElementById('remotePlaceholder');
+    const roomCodeInput = document.getElementById('roomCode');
+    const createOfferBtn = document.getElementById('createOffer');
+    const answerOfferBtn = document.getElementById('answerOffer');
+    const hangupCallBtn = document.getElementById('hangupCall');
+    const callStatusEl = document.getElementById('callStatus');
+
+    let callLocalStream = null;
+    let peerConnection = null;
+    let callRoomKey = null;
+
+    const rtcConfig = {
       iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun.l.google.com:19302' }
       ]
     };
 
-    let peerConnection = null;
-    let localStream = null;
-    let remoteStream = null;
-    let currentRoomId = null;
-    let unsubscribeChat = null;
-    let unsubscribeRoom = null;
-    // -------------------------
-
-    // --- СЛУЖЕБНЫЕ ФУНКЦИИ ---
-
-    /** Включает/выключает указанные элементы */
-    function setControlsEnabled(enabled) {
-      roomIdInput.disabled = !enabled;
-      createRoomBtn.disabled = !enabled;
-      joinRoomBtn.disabled = !enabled;
-      hangupBtn.disabled = enabled;
-      messageInput.disabled = !enabled;
-      sendBtn.disabled = !enabled;
+    function logStatus(text) {
+      console.log('[CALL]', text);
+      callStatusEl.textContent = text;
     }
 
-    /** Обновляет статус UI */
-    function updateConnectionState(state) {
-        if (state === 'connected') {
-            connectionStatusEl.classList.add('hidden');
-            connectedStatusEl.classList.remove('hidden');
-            videoStatusText.textContent = `Соединение установлено. Комната: ${currentRoomId}`;
-        } else if (state === 'connecting') {
-            connectionStatusEl.classList.remove('hidden');
-            connectedStatusEl.classList.add('hidden');
-            videoStatusText.textContent = 'Подключение... Ожидаем ICE кандидатов.';
-        } else { // disconnected
-            connectionStatusEl.classList.remove('hidden');
-            connectedStatusEl.classList.add('hidden');
-            videoStatusText.textContent = currentRoomId ? `Соединение разорвано. Комната ${currentRoomId}.` : 'Ожидание подключения.';
-            currentRoomIdDisplay.textContent = currentRoomId || 'Нет';
-        }
-    }
-    
-    /** Получает локальный медиапоток (камера и микрофон) */
-    async function getLocalStream() {
+    async function getCallMediaStream() {
+      if (callLocalStream) return callLocalStream;
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 640 }, height: { ideal: 480 } },
-          audio: true
-        });
-        localVideoEl.srcObject = localStream;
-        localVideoEl.classList.remove('hidden');
-        camToggleBtn.textContent = '📹 Камера (ВКЛ)';
-        micToggleBtn.textContent = '🎤 Микрофон (ВКЛ)';
-      } catch (e) {
-        console.error("Не удалось получить доступ к медиа устройствам:", e);
-        videoStatusText.textContent = 'ОШИБКА: Нет доступа к камере/микрофону.';
-        // Создаем пустой поток, чтобы не ломать WebRTC
-        localStream = new MediaStream(); 
-        camToggleBtn.textContent = '📹 Камера (ОТКЛ)';
-        micToggleBtn.textContent = '🎤 Микрофон (ОТКЛ)';
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        callLocalStream = stream;
+        callLocalVideo.srcObject = stream;
+        return stream;
+      } catch (err) {
+        console.error('Ошибка доступа к медиа для звонка', err);
+        logStatus('Не удалось получить доступ к камере/микрофону для звонка.');
+        throw err;
       }
     }
 
-    /** Сброс всех ресурсов */
-    function hangup() {
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-      }
+    function cleanupCall() {
       if (peerConnection) {
+        peerConnection.onicecandidate = null;
+        peerConnection.ontrack = null;
+        peerConnection.onconnectionstatechange = null;
         peerConnection.close();
       }
-      if (unsubscribeChat) {
-        unsubscribeChat();
-      }
-      if (unsubscribeRoom) {
-        unsubscribeRoom();
-      }
-
-      localStream = null;
       peerConnection = null;
-      remoteVideoEl.srcObject = null;
-      localVideoEl.srcObject = null;
-      localVideoEl.classList.add('hidden');
-      currentRoomId = null;
-
-      updateConnectionState('disconnected');
-      setControlsEnabled(true);
-      hangupBtn.disabled = true;
-      roomIdInput.value = '';
-      chat.innerHTML = '<p class="text-center text-sm text-slate-500 mt-4">Чат будет активен после создания или присоединения к комнате.</p>';
-    }
-
-    // --- ЛОГИКА WEBRTC ---
-
-    /** Настройка RTCPeerConnection */
-    function setupPeerConnection(roomId) {
-      peerConnection = new RTCPeerConnection(configuration);
-
-      // Добавляем локальные треки в PeerConnection
-      localStream.getTracks().forEach(track => {
-        peerConnection.addTrack(track, localStream);
-      });
-
-      // Обработка получения удаленного потока
-      remoteStream = new MediaStream();
-      peerConnection.ontrack = (event) => {
-        event.streams[0].getTracks().forEach(track => {
-          remoteStream.addTrack(track);
-        });
-        remoteVideoEl.srcObject = remoteStream;
-      };
-
-      // Обработка состояния подключения
-      peerConnection.oniceconnectionstatechange = () => {
-        console.log('ICE state:', peerConnection.iceConnectionState);
-        if (peerConnection.iceConnectionState === 'connected') {
-            updateConnectionState('connected');
-        } else if (peerConnection.iceConnectionState === 'failed' || peerConnection.iceConnectionState === 'disconnected') {
-            updateConnectionState('connecting'); // Может быть временным, попробуем еще раз
-        } else if (peerConnection.iceConnectionState === 'closed') {
-            hangup();
-        }
-      };
-
-      // Слушаем ICE кандидатов и отправляем их в Firestore
-      const roomRef = doc(db, PUBLIC_COLLECTION_PATH, 'rooms', roomId);
-      const candidatesCollection = collection(roomRef, 'candidates');
-
-      peerConnection.onicecandidate = async (event) => {
-        if (event.candidate) {
-          console.log('Отправка ICE кандидата:', event.candidate);
-          await addDoc(candidatesCollection, event.candidate.toJSON());
-        }
-      };
-    }
-
-    /** 1. Создание комнаты (Offer) */
-    async function createRoom() {
-      if (!isAuthReady) return alert('Ошибка: Ожидается авторизация.');
-      
-      await getLocalStream();
-      const roomId = Math.random().toString(36).substring(2, 9);
-      currentRoomId = roomId;
-      setupPeerConnection(roomId);
-      setControlsEnabled(false);
-      hangupBtn.disabled = false;
-      
-      currentRoomIdDisplay.textContent = roomId;
-      updateConnectionState('connecting');
-
-      const roomRef = doc(db, PUBLIC_COLLECTION_PATH, 'rooms', roomId);
-      const offerCandidatesCollection = collection(roomRef, 'offerCandidates');
-      const answerCandidatesCollection = collection(roomRef, 'answerCandidates');
-
-      // Создаем Offer
-      const offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
-      
-      console.log('Создан Offer, записываем в Firestore.');
-
-      const roomWithOffer = {
-        offer: {
-          type: offer.type,
-          sdp: offer.sdp,
-        },
-        createdAt: serverTimestamp(),
-        creatorId: userId,
-      };
-
-      await setDoc(roomRef, roomWithOffer);
-      
-      // Начинаем слушать Answer
-      unsubscribeRoom = onSnapshot(roomRef, async (snapshot) => {
-        const data = snapshot.data();
-        if (data && data.answer && !peerConnection.currentRemoteDescription) {
-          console.log('Получен Answer, устанавливаем удаленное описание.');
-          const answerDesc = new RTCSessionDescription(data.answer);
-          await peerConnection.setRemoteDescription(answerDesc);
-          
-          // Начинаем слушать ICE кандидатов от отвечающего
-          unsubscribeRoom(); // Останавливаем прослушивание комнаты
-          listenForCandidates(answerCandidatesCollection);
-        }
-      });
-      
-      // Слушаем ICE кандидатов от создающего
-      listenForCandidates(offerCandidatesCollection);
-
-      // Запускаем чат
-      setupChat(roomId);
-    }
-
-    /** 2. Присоединение к комнате (Answer) */
-    async function joinRoom() {
-      if (!isAuthReady) return alert('Ошибка: Ожидается авторизация.');
-      const roomId = roomIdInput.value.trim();
-      if (!roomId) return alert('Пожалуйста, введите ID комнаты.');
-
-      await getLocalStream();
-      currentRoomId = roomId;
-      setupPeerConnection(roomId);
-      setControlsEnabled(false);
-      hangupBtn.disabled = false;
-      
-      currentRoomIdDisplay.textContent = roomId;
-      updateConnectionState('connecting');
-
-      const roomRef = doc(db, PUBLIC_COLLECTION_PATH, 'rooms', roomId);
-      const offerCandidatesCollection = collection(roomRef, 'offerCandidates');
-      const answerCandidatesCollection = collection(roomRef, 'answerCandidates');
-      
-      const roomSnapshot = await getDoc(roomRef);
-      if (!roomSnapshot.exists()) {
-        alert('Комната не найдена.');
-        hangup();
-        return;
+      if (remoteVideo.srcObject) {
+        remoteVideo.srcObject.getTracks().forEach(t => t.stop());
       }
-      
-      const offer = roomSnapshot.data().offer;
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-      
-      // Создаем Answer
-      const answer = await peerConnection.createAnswer();
-      await peerConnection.setLocalDescription(answer);
-
-      const roomWithAnswer = {
-        answer: {
-          type: answer.type,
-          sdp: answer.sdp,
-        },
-        joinedAt: serverTimestamp(),
-        joinerId: userId,
-      };
-
-      await updateDoc(roomRef, roomWithAnswer);
-      console.log('Отправлен Answer.');
-
-      // Начинаем слушать ICE кандидатов
-      listenForCandidates(offerCandidatesCollection);
-      listenForCandidates(answerCandidatesCollection);
-
-      // Запускаем чат
-      setupChat(roomId);
+      remoteVideo.srcObject = null;
+      remotePlaceholder.classList.remove('hidden');
+      if (callLocalStream) {
+        // Не останавливаем, чтобы пользователь оставался с включенной камерой в интерфейсе звонка
+        callLocalVideo.srcObject = callLocalStream;
+      }
+      if (callRoomKey) {
+        localStorage.removeItem(callRoomKey + ':offer');
+        localStorage.removeItem(callRoomKey + ':answer');
+        localStorage.removeItem(callRoomKey + ':ice');
+      }
+      logStatus('Звонок завершён.');
     }
 
-    /** Слушатель ICE кандидатов */
-    function listenForCandidates(collectionRef) {
-      onSnapshot(collectionRef, (snapshot) => {
-        snapshot.docChanges().forEach(async (change) => {
-          if (change.type === 'added') {
-            const candidate = new RTCIceCandidate(change.doc.data());
+    function getRoomKey() {
+      const code = roomCodeInput.value.trim();
+      if (!code) {
+        alert('Введите код комнаты');
+        return null;
+      }
+      return 'demo-call-room:' + code;
+    }
+
+    function subscribeToStorageEvents() {
+      window.addEventListener('storage', async (e) => {
+        if (!callRoomKey || !peerConnection) return;
+        if (!e.key || !e.key.startsWith(callRoomKey)) return;
+
+        if (e.key.endsWith(':offer')) {
+          // Получили оффер от другого участника
+          if (!localStorage.getItem(callRoomKey + ':answer')) {
+            const offer = JSON.parse(e.newValue);
+            logStatus('Получен оффер, создаём ответ…');
+            await handleRemoteOffer(offer);
+          }
+        } else if (e.key.endsWith(':answer')) {
+          // Получили ответ
+          const answer = JSON.parse(e.newValue);
+          logStatus('Получен ответ, устанавливаем…');
+          await peerConnection.setRemoteDescription(answer);
+        } else if (e.key.endsWith(':ice')) {
+          const list = JSON.parse(e.newValue || '[]');
+          for (const cand of list) {
             try {
-              await peerConnection.addIceCandidate(candidate);
-              console.log('Добавлен ICE кандидат:', candidate);
-            } catch (e) {
-              console.error('Ошибка при добавлении ICE кандидата:', e);
+              await peerConnection.addIceCandidate(cand);
+            } catch (err) {
+              console.error('Ошибка добавления ICE', err);
             }
           }
-        });
+        }
       });
     }
 
-    // --- ЛОГИКА ЧАТА (Firestore) ---
-
-    const badges = {
-      Alex: 'Ведущий',
-      Maria: 'Модератор',
-      DevGuru: 'Подписчик',
-      Guest: 'Гость'
-    };
-
-    const colors = {
-      Alex: 'from-indigo-500 to-fuchsia-500',
-      Maria: 'from-emerald-500 to-cyan-500',
-      DevGuru: 'from-amber-500 to-orange-500',
-      Guest: 'from-slate-500 to-slate-700'
-    };
-    
-    function renderMessage(user, text, timestamp) {
-      const wrap = document.createElement('div');
-      wrap.className = 'p-3 rounded-xl bg-white/5 border border-white/5 shadow-sm shadow-black/20';
-
-      const head = document.createElement('div');
-      head.className = 'flex items-center justify-between mb-1';
-
-      const userInfo = document.createElement('div');
-      userInfo.className = 'flex items-center gap-2';
-
-      const avatar = document.createElement('div');
-      avatar.className = `h-8 w-8 rounded-full bg-gradient-to-br ${colors[user] || 'from-slate-500 to-slate-700'} flex items-center justify-center text-xs font-semibold uppercase flex-shrink-0`;
-      avatar.textContent = user.slice(0, 2);
-
-      const name = document.createElement('div');
-      name.className = 'flex items-center gap-2 truncate';
-      const userEl = document.createElement('span');
-      userEl.className = 'font-semibold';
-      userEl.textContent = user;
-      const badge = document.createElement('span');
-      badge.className = 'text-[11px] px-2 py-[2px] rounded-full bg-white/10 border border-white/10 text-slate-200 flex-shrink-0';
-      badge.textContent = badges[user] || 'Зритель';
-      name.append(userEl, badge);
-      userInfo.append(avatar, name);
-
-      const timeEl = document.createElement('span');
-      timeEl.className = 'text-xs text-slate-500 flex-shrink-0';
-      if (timestamp) {
-        timeEl.textContent = new Date(timestamp.seconds * 1000).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-      }
-
-      head.append(userInfo, timeEl);
-
-      const body = document.createElement('p');
-      body.className = 'text-sm text-slate-200 leading-relaxed break-words';
-      body.textContent = text;
-
-      wrap.append(head, body);
-      chat.appendChild(wrap);
-      chat.scrollTo({ top: chat.scrollHeight, behavior: 'smooth' });
+    function writeIceCandidate(candidate) {
+      if (!callRoomKey) return;
+      const key = callRoomKey + ':ice';
+      const list = JSON.parse(localStorage.getItem(key) || '[]');
+      list.push(candidate);
+      localStorage.setItem(key, JSON.stringify(list));
     }
 
-    /** Отправка сообщения в Firestore */
-    async function sendMessage() {
-      const text = messageInput.value.trim();
-      const user = userSelect.value;
-      if (!text || !currentRoomId) return;
+    async function createPeerConnection() {
+      if (peerConnection) return peerConnection;
+      peerConnection = new RTCPeerConnection(rtcConfig);
 
-      try {
-        const chatCollectionRef = collection(db, PUBLIC_COLLECTION_PATH, 'rooms', currentRoomId, 'messages');
-        await addDoc(chatCollectionRef, {
-          user: user,
-          text: text,
-          userId: userId,
-          timestamp: serverTimestamp(),
-        });
-        messageInput.value = '';
-        messageInput.focus();
-      } catch (e) {
-        console.error("Ошибка при отправке сообщения:", e);
-        alert('Не удалось отправить сообщение. Проверьте правила Firestore.');
-      }
-    }
-
-    /** Настройка прослушивания чата Firestore */
-    function setupChat(roomId) {
-      chat.innerHTML = '';
-      const chatCollectionRef = collection(db, PUBLIC_COLLECTION_PATH, 'rooms', roomId, 'messages');
-      // Запрос с сортировкой по timestamp
-      const q = query(chatCollectionRef, orderBy('timestamp'));
-
-      unsubscribeChat = onSnapshot(q, (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === 'added') {
-            const data = change.doc.data();
-            renderMessage(data.user, data.text, data.timestamp);
-          }
-        });
-      }, (error) => {
-        console.error("Ошибка прослушивания чата:", error);
+      const stream = await getCallMediaStream();
+      stream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, stream);
       });
+
+      peerConnection.ontrack = (event) => {
+        if (!remoteVideo.srcObject) {
+          remoteVideo.srcObject = event.streams[0];
+        }
+        remotePlaceholder.classList.add('hidden');
+      };
+
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          writeIceCandidate(event.candidate.toJSON());
+        }
+      };
+
+      peerConnection.onconnectionstatechange = () => {
+        logStatus('Состояние соединения: ' + peerConnection.connectionState);
+        if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'closed') {
+          // Авто-очистка при разрыве
+          // cleanupCall(); // можно не вызывать автоматически, чтобы пользователь решал сам
+        }
+      };
+
+      return peerConnection;
     }
 
-    // --- ОБРАБОТЧИКИ КНОПОК И УПРАВЛЕНИЕ МЕДИА ---
+    async function startOfferFlow() {
+      const key = getRoomKey();
+      if (!key) return;
+      callRoomKey = key;
+      logStatus('Подготовка к созданию звонка…');
+      await getCallMediaStream();
+      await createPeerConnection();
 
-    createRoomBtn.addEventListener('click', createRoom);
-    joinRoomBtn.addEventListener('click', joinRoom);
-    hangupBtn.addEventListener('click', hangup);
-    sendBtn.addEventListener('click', sendMessage);
-    messageInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') sendMessage();
-    });
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      localStorage.setItem(callRoomKey + ':offer', JSON.stringify(offer));
+      logStatus('Ожидаем подключения друга. Отправьте ему тот же код комнаты.');
+    }
 
-    camToggleBtn.addEventListener('click', () => {
-        if (!localStream) return;
-        const videoTrack = localStream.getVideoTracks()[0];
-        if (videoTrack) {
-            videoTrack.enabled = !videoTrack.enabled;
-            camToggleBtn.textContent = videoTrack.enabled ? '📹 Камера (ВКЛ)' : '📹 Камера (ОТКЛ)';
-        }
-    });
+    async function handleRemoteOffer(offer) {
+      if (!peerConnection) {
+        await getCallMediaStream();
+        await createPeerConnection();
+      }
+      await peerConnection.setRemoteDescription(offer);
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      localStorage.setItem(callRoomKey + ':answer', JSON.stringify(answer));
+      logStatus('Ответ отправлен. Ожидаем установления соединения…');
+    }
 
-    micToggleBtn.addEventListener('click', () => {
-        if (!localStream) return;
-        const audioTrack = localStream.getAudioTracks()[0];
-        if (audioTrack) {
-            audioTrack.enabled = !audioTrack.enabled;
-            micToggleBtn.textContent = audioTrack.enabled ? '🎤 Микрофон (ВКЛ)' : '🎤 Микрофон (ОТКЛ)';
-        }
-    });
+    async function startAnswerFlow() {
+      const key = getRoomKey();
+      if (!key) return;
+      callRoomKey = key;
+      await getCallMediaStream();
+      await createPeerConnection();
 
-    // --- ИНИЦИАЛИЗАЦИЯ FIREBASE ---
-
-    async function initializeFirebase() {
-      authStatusEl.textContent = 'Подключение...';
-      try {
-        app = initializeApp(firebaseConfig);
-        db = getFirestore(app);
-        auth = getAuth(app);
-        
-        // Аутентификация: используем токен, если он есть, иначе анонимный вход.
-        if (initialAuthToken) {
-          await signInWithCustomToken(auth, initialAuthToken);
-        } else {
-          await signInAnonymously(auth);
-        }
-
-        onAuthStateChanged(auth, (user) => {
-          if (user) {
-            userId = user.uid;
-            isAuthReady = true;
-            authStatusEl.textContent = 'Авторизован';
-            userIdDisplay.textContent = userId.substring(0, 8) + '...';
-            console.log("Firebase/Auth готов. User ID:", userId);
-            updateConnectionState('disconnected'); // Сброс статуса
-          } else {
-            authStatusEl.textContent = 'Ошибка авторизации';
-            console.error("Firebase/Auth не готов.");
-          }
-        });
-      } catch (e) {
-        console.error("Ошибка инициализации Firebase:", e);
-        authStatusEl.textContent = 'ОШИБКА FIREBASE';
+      const offerRaw = localStorage.getItem(callRoomKey + ':offer');
+      if (offerRaw) {
+        const offer = JSON.parse(offerRaw);
+        await handleRemoteOffer(offer);
+      } else {
+        logStatus('Оффер ещё не создан. Попросите друга нажать «Создать звонок» и попробуйте ещё раз.');
       }
     }
 
-    // Запуск приложения
-    window.onload = initializeFirebase;
-    setControlsEnabled(true); // Изначально разрешаем только создать/присоединиться
+    createOfferBtn.addEventListener('click', startOfferFlow);
+    answerOfferBtn.addEventListener('click', startAnswerFlow);
+    hangupCallBtn.addEventListener('click', cleanupCall);
+
+    // Инициализация камеры для блока звонка при загрузке (по желанию)
+    if (navigator.mediaDevices?.getUserMedia) {
+      getCallMediaStream().catch(() => {});
+    } else {
+      logStatus('Браузер не поддерживает WebRTC / getUserMedia.');
+    }
+
+    subscribeToStorageEvents();
   </script>
 </body>
 </html>
