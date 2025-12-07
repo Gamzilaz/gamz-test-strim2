@@ -132,27 +132,33 @@
         
         <div class="p-4 rounded-xl border border-white/10 bg-white/5 space-y-4">
           <div class="flex items-center justify-between gap-2">
-            <h3 class="font-semibold">Позвонить другу</h3>
+            <h3 class="font-semibold">Создать или ответить на приглашение</h3>
             <div class="flex gap-2">
-              <button id="createOfferBtn" class="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm">Создать код</button>
-              <button id="connectBtn" class="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm">Подключиться</button>
+              <button id="createOfferBtn" class="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm">Создать приглашение</button>
+              <button id="answerBtn" class="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm">Ответить</button>
             </div>
           </div>
           
           <div class="grid md:grid-cols-2 gap-4">
             <div class="space-y-2">
-              <label class="text-xs text-slate-400">Ваш код (отправьте другу)</label>
+              <label class="text-xs text-slate-400">Код приглашения (отправьте другу)</label>
               <div class="flex gap-2">
-                <textarea id="inviteOut" rows="2" class="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs font-mono" placeholder="Нажмите "Создать код""></textarea>
+                <textarea id="inviteOut" rows="2" class="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs"></textarea>
                 <button id="copyInvite" class="px-3 py-2 rounded-lg bg-white/10 border border-white/10 text-xs whitespace-nowrap">Копия</button>
               </div>
             </div>
             
             <div class="space-y-2">
-              <label class="text-xs text-slate-400">Код друга</label>
-              <div class="flex gap-2">
-                <textarea id="inviteIn" rows="2" class="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs font-mono" placeholder="Вставьте код друга"></textarea>
-              </div>
+              <label class="text-xs text-slate-400">Вставьте приглашение от друга</label>
+              <textarea id="inviteIn" rows="2" class="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs" placeholder="Код приглашения"></textarea>
+            </div>
+          </div>
+          
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs text-slate-400">После ответа скопируйте код и отправьте инициатору</span>
+            <div class="flex gap-2">
+              <textarea id="answerOut" rows="2" class="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs" placeholder="Код ответа появится здесь"></textarea>
+              <button id="copyAnswer" class="px-3 py-2 rounded-lg bg-white/10 border border-white/10 text-xs whitespace-nowrap">Копия</button>
             </div>
           </div>
         </div>
@@ -179,11 +185,15 @@
     const remoteVideo = document.getElementById('remoteVideo');
     const callStatus = document.getElementById('callStatus');
     const createOfferBtn = document.getElementById('createOfferBtn');
-    const connectBtn = document.getElementById('connectBtn');
+    const answerBtn = document.getElementById('answerBtn');
+    const acceptAnswerBtn = document.getElementById('acceptAnswerBtn');
     const resetCall = document.getElementById('resetCall');
     const inviteOut = document.getElementById('inviteOut');
     const inviteIn = document.getElementById('inviteIn');
+    const answerOut = document.getElementById('answerOut');
+    const answerIn = document.getElementById('answerIn');
     const copyInvite = document.getElementById('copyInvite');
+    const copyAnswer = document.getElementById('copyAnswer');
 
     const demoFallback = 'https://cdn.coverr.co/videos/coverr-tech-meeting-1607/1080p.mp4';
     let cameraStream = null;
@@ -396,35 +406,11 @@
       });
     }
 
-    // Создаем короткий код приглашения (до 200 символов)
-    function buildShortCode(desc) {
-      // Минимальный SDP - только основные параметры
-      const sdp = desc.sdp;
-      const lines = sdp.split('\n');
-      const essential = [];
-      
-      for (const line of lines) {
-        if (line.startsWith('v=') || line.startsWith('o=') || line.startsWith('s=') || 
-            line.startsWith('t=') || line.startsWith('a=group:BUNDLE') ||
-            line.startsWith('m=') || line.startsWith('a=mid:') ||
-            line.startsWith('a=setup:') || line.startsWith('a=ice-ufrag:') ||
-            line.startsWith('a=ice-pwd:') || line.startsWith('a=fingerprint:') ||
-            line.startsWith('a=candidate:') || line.startsWith('a=sendrecv') ||
-            line.startsWith('a=rtcp-mux')) {
-          essential.push(line);
-        }
-      }
-      
-      const compactSdp = essential.join('\n');
-      const data = {
-        t: desc.type === 'offer' ? 'o' : 'a',
-        s: compactSdp
-      };
-      
-      // Сжимаем и кодируем
-      const json = JSON.stringify(data);
+    // Упаковываем SDP с максимальной компрессией через gzip (pako)
+    function buildPackage(desc) {
+      const compact = { t: desc.type === 'offer' ? 'o' : 'a', s: desc.sdp };
+      const json = JSON.stringify(compact);
       const compressed = pako.deflate(json, { level: 9 });
-      
       // Конвертируем в base64
       let binary = '';
       const len = compressed.byteLength;
@@ -434,7 +420,7 @@
       return btoa(binary);
     }
 
-    function parseShortCode(str) {
+    function parsePackage(str) {
       try {
         // Декодируем из base64
         const binary = atob(str.trim());
@@ -444,11 +430,11 @@
         }
         // Распаковываем gzip
         const decompressed = pako.inflate(bytes, { to: 'string' });
-        const data = JSON.parse(decompressed);
-        const type = data.t === 'o' ? 'offer' : 'answer';
-        return new RTCSessionDescription({ type, sdp: data.s });
+        const compact = JSON.parse(decompressed);
+        const type = compact.t === 'o' ? 'offer' : 'answer';
+        return new RTCSessionDescription({ type, sdp: compact.s });
       } catch (err) {
-        alert('Неверный код приглашения');
+        alert('Неверные данные приглашения/ответа');
         return null;
       }
     }
@@ -473,7 +459,7 @@
 
     async function createInvite() {
       try {
-        setCallStatus('Создаем код...', 'info');
+        setCallStatus('Создаем приглашение...', 'info');
         const stream = await ensureCameraStream(true);
         if (!stream) return;
         const peer = createPeerConnection();
@@ -481,47 +467,54 @@
         const offer = await peer.createOffer();
         await peer.setLocalDescription(offer);
         await waitForIceComplete(peer);
-        const code = buildShortCode(peer.localDescription);
-        inviteOut.value = code;
-        setCallStatus('Код готов! Отправьте другу', 'success');
+        const pkg = buildPackage(peer.localDescription);
+        inviteOut.value = pkg;
+        setCallStatus('Скопируйте код приглашения и отправьте другу (как текст, не как ссылку)', 'success');
       } catch (err) {
         console.error(err);
-        setCallStatus('Не удалось создать код', 'error');
+        setCallStatus('Не удалось создать приглашение', 'error');
       }
     }
 
-    async function connectToFriend() {
-      const code = inviteIn.value.trim();
-      if (!code) {
-        setCallStatus('Введите код друга', 'error');
-        return;
-      }
-      
-      const remoteDesc = parseShortCode(code);
+    async function answerInvite() {
+      const inbound = inviteIn.value.trim();
+      if (!inbound) return alert('Вставьте приглашение от друга');
+      const remoteDesc = parsePackage(inbound);
       if (!remoteDesc) return;
-      
       try {
-        setCallStatus('Подключаемся...', 'info');
+        setCallStatus('Формируем ответ...', 'info');
         const stream = await ensureCameraStream(true);
         if (!stream) return;
         const peer = createPeerConnection();
         stream.getTracks().forEach((t) => peer.addTrack(t, stream));
-        
-        if (remoteDesc.type === 'offer') {
-          // Мы отвечаем на приглашение
-          await peer.setRemoteDescription(remoteDesc);
-          const answer = await peer.createAnswer();
-          await peer.setLocalDescription(answer);
-          await waitForIceComplete(peer);
-          setCallStatus('Подключено!', 'success');
-        } else {
-          // Мы инициатор, получили ответ
-          await peer.setRemoteDescription(remoteDesc);
-          setCallStatus('Подключено!', 'success');
-        }
+        await peer.setRemoteDescription(remoteDesc);
+        const answer = await peer.createAnswer();
+        await peer.setLocalDescription(answer);
+        await waitForIceComplete(peer);
+        const pkg = buildPackage(peer.localDescription);
+        answerOut.value = pkg;
+        setCallStatus('Ответ готов — отправьте инициатору (как текст, не как ссылку)', 'success');
       } catch (err) {
         console.error(err);
-        setCallStatus('Ошибка подключения', 'error');
+        setCallStatus('Ошибка при ответе на приглашение', 'error');
+      }
+    }
+
+    async function acceptAnswer() {
+      const inbound = answerIn.value.trim();
+      if (!inbound) return alert('Вставьте ответ друга');
+      const remoteDesc = parsePackage(inbound);
+      if (!remoteDesc) return;
+      if (!pc) {
+        setCallStatus('Сначала создайте приглашение', 'error');
+        return;
+      }
+      try {
+        await pc.setRemoteDescription(remoteDesc);
+        setCallStatus('Ответ принят, ждем соединения...', 'info');
+      } catch (err) {
+        console.error(err);
+        setCallStatus('Не удалось применить ответ', 'error');
       }
     }
 
@@ -529,15 +522,17 @@
       if (!el.value) return;
       try {
         await navigator.clipboard.writeText(el.value);
-        setCallStatus('Скопировано', 'success');
+        setCallStatus('Скопировано в буфер обмена', 'success');
       } catch {
         setCallStatus('Не удалось скопировать', 'error');
       }
     }
 
     createOfferBtn.addEventListener('click', createInvite);
-    connectBtn.addEventListener('click', connectToFriend);
+    answerBtn.addEventListener('click', answerInvite);
+    acceptAnswerBtn.addEventListener('click', acceptAnswer);
     copyInvite.addEventListener('click', () => copyToClipboard(inviteOut));
+    copyAnswer.addEventListener('click', () => copyToClipboard(answerOut));
 
     // Автостарт камеры (сразу попросим разрешение)
     startCamera();
