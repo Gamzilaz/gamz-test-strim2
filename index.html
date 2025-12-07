@@ -3,46 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Видеосвязь и Чат (WebRTC + Firebase)</title>
+  <title>Мой стрим & Чат</title>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <style>
     :root { color-scheme: dark; }
-    /* Стиль "стекло" для прозрачности */
-    .glass { backdrop-filter: blur(16px); background: rgba(15,23,42,0.8); }
-    /* Стили для прокрутки */
+    .glass { backdrop-filter: blur(12px); background: rgba(15,23,42,0.6); }
     .scrollbar::-webkit-scrollbar { width: 8px; }
     .scrollbar::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.6); border-radius: 12px; }
-    /* Стили для маленького локального видео */
-    #localVideo {
-      position: absolute;
-      top: 1rem;
-      right: 1rem;
-      width: 150px;
-      height: 100px;
-      border-radius: 12px;
-      object-fit: cover;
-      border: 3px solid rgba(255, 255, 255, 0.4);
-      z-index: 10;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-      transition: transform 0.3s ease;
-      cursor: pointer;
-    }
-    #localVideo:hover {
-      transform: scale(1.05);
-    }
-    /* Стили для модального окна */
-    #modalOverlay {
-        position: fixed;
-        inset: 0;
-        background-color: rgba(0, 0, 0, 0.7);
-        display: none;
-        place-items: center;
-        z-index: 50;
-    }
   </style>
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-100">
-  <!-- Фон с градиентами -->
   <div class="fixed inset-0 -z-10 overflow-hidden">
     <div class="absolute inset-0 bg-gradient-to-br from-indigo-700/30 via-slate-900 to-fuchsia-800/20"></div>
     <div class="absolute w-[900px] h-[900px] -top-40 -left-40 rounded-full bg-indigo-500/20 blur-[150px]"></div>
@@ -51,60 +21,45 @@
 
   <header class="flex items-center justify-between px-6 py-4 border-b border-white/10 glass sticky top-0 z-20">
     <div class="flex items-center gap-3">
-      <div class="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center font-bold text-xl">📞</div>
+      <div class="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center font-bold text-xl">▶</div>
       <div>
-        <p class="text-sm uppercase tracking-[0.25em] text-slate-300">Режим: <span id="authStatus" class="font-semibold text-white">Авторизация...</span></p>
-        <h1 class="text-2xl font-semibold">WebRTC Связь</h1>
+        <p class="text-sm uppercase tracking-[0.25em] text-slate-300">Live stream</p>
+        <h1 class="text-2xl font-semibold">Tech & Chill</h1>
       </div>
     </div>
     <div class="flex items-center gap-3 text-sm">
-      <div class="px-3 py-1 rounded-full bg-white/10 border border-white/10">ID Пользователя: <span id="userIdDisplay" class="font-mono text-xs">...</span></div>
-      <div class="px-3 py-1 rounded-full bg-red-600/20 border border-red-400/40 text-red-100 hidden" id="connectionStatus">ОФФЛАЙН</div>
-      <div class="px-3 py-1 rounded-full bg-green-600/20 border border-green-400/40 text-green-100 hidden" id="connectedStatus">СОЕДИНЕНО</div>
+      <div class="px-3 py-1 rounded-full bg-white/10 border border-white/10">Зрителей: <span id="viewerCount">3 482</span></div>
+      <div class="px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-100">LIVE</div>
     </div>
   </header>
 
   <main class="grid grid-cols-1 xl:grid-cols-3 gap-6 p-6 max-w-6xl mx-auto">
-    <!-- Секция Видео -->
     <section class="xl:col-span-2 glass border border-white/10 rounded-2xl overflow-hidden shadow-2xl shadow-indigo-900/30">
       <div class="relative aspect-video bg-slate-900 flex items-center justify-center">
-        <!-- Основное видео (УДАЛЕННЫЙ друг) -->
-        <video id="remoteVideo" class="w-full h-full object-cover" autoplay playsinline></video>
-        
-        <!-- Локальное видео (ваш предпросмотр) -->
-        <video id="localVideo" class="hidden" autoplay muted playsinline></video> 
-
+        <video id="stream" class="w-full h-full object-cover" autoplay muted playsinline></video>
         <div class="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent pointer-events-none"></div>
-        <div class="absolute bottom-4 left-4 px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-sm" id="roomLabel">ID Комнаты: <span id="currentRoomIdDisplay" class="font-mono">Нет</span></div>
-        <div class="absolute bottom-4 right-4 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-slate-200">
-          <span id="videoStatusText">Ожидание подключения...</span>
-        </div>
+        <div class="absolute bottom-4 left-4 px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-sm" id="liveLabel">Подключение...</div>
+        <div class="absolute bottom-4 right-4 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-slate-200">Разрешите доступ к камере — вы увидите себя</div>
       </div>
-
-      <div class="p-4 border-t border-white/5 flex flex-col md:flex-row items-center justify-between bg-slate-900/60 flex-wrap gap-4">
-        
-        <!-- Управление комнатой -->
-        <div class="flex items-center gap-3 w-full md:w-auto">
-          <input id="roomIdInput" type="text" placeholder="Введите ID комнаты" class="px-3 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-indigo-400/60 w-full md:w-auto min-w-[200px]" />
-          <button id="createRoomBtn" class="px-4 py-2 rounded-lg bg-indigo-600 border border-indigo-500 hover:bg-indigo-500 transition shadow-lg shadow-indigo-900/40">➕ Создать</button>
-          <button id="joinRoomBtn" class="px-4 py-2 rounded-lg bg-fuchsia-600 border border-fuchsia-500 hover:bg-fuchsia-500 transition shadow-lg shadow-fuchsia-900/40">🔗 Присоединиться</button>
+      <div class="p-4 border-t border-white/5 flex items-center justify-between bg-slate-900/60 flex-wrap gap-3">
+        <div class="flex items-center gap-2 text-sm text-slate-300">
+          <span class="h-2 w-2 rounded-full bg-green-400 animate-pulse"></span>
+          <span id="statusText">Готовим камеру...</span>
         </div>
-
-        <!-- Кнопки управления медиа -->
         <div class="flex items-center gap-2 text-sm">
-          <button id="camToggleBtn" class="px-3 py-1 rounded-lg bg-white/10 border border-white/10 hover:bg-white/15 transition">📹 Камера (ВКЛ)</button>
-          <button id="micToggleBtn" class="px-3 py-1 rounded-lg bg-white/10 border border-white/10 hover:bg-white/15 transition">🎤 Микрофон (ВКЛ)</button>
-          <button id="hangupBtn" class="px-3 py-1 rounded-lg bg-red-600 border border-red-500 hover:bg-red-500 transition" disabled>❌ Завершить</button>
+          <button id="startCam" class="px-3 py-1 rounded-lg bg-indigo-600 border border-indigo-500 hover:bg-indigo-500 transition shadow-lg shadow-indigo-900/40">📷 Включить камеру</button>
+          <button id="muteBtn" class="px-3 py-1 rounded-lg bg-white/10 border border-white/10 hover:bg-white/15 transition">🔈 Звук</button>
+          <button id="pipBtn" class="px-3 py-1 rounded-lg bg-white/10 border border-white/10 hover:bg-white/15 transition">🖼️ PiP</button>
+          <button id="fullBtn" class="px-3 py-1 rounded-lg bg-white/10 border border-white/10 hover:bg-white/15 transition">⛶ Полный экран</button>
         </div>
       </div>
     </section>
 
-    <!-- Секция Чат -->
     <aside class="glass border border-white/10 rounded-2xl shadow-2xl shadow-indigo-900/30 flex flex-col h-[70vh] xl:h-[82vh]">
       <div class="flex items-center justify-between px-4 py-3 border-b border-white/5">
         <div>
           <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Чат</p>
-          <h2 class="text-xl font-semibold">Сообщения комнаты</h2>
+          <h2 class="text-xl font-semibold">Прямой эфир</h2>
         </div>
         <div class="flex items-center gap-2">
           <select id="userSelect" class="bg-white/10 border border-white/10 rounded-lg px-2 py-1 text-sm focus:outline-none">
@@ -113,378 +68,129 @@
             <option>DevGuru</option>
             <option>Guest</option>
           </select>
-          <button id="clearChatBtn" class="text-xs px-2 py-1 rounded bg-white/10 border border-white/10 hover:bg-white/15">Очистить Локально</button>
+          <button id="clearBtn" class="text-xs px-2 py-1 rounded bg-white/10 border border-white/10 hover:bg-white/15">Очистить</button>
         </div>
       </div>
 
       <div id="chat" class="flex-1 overflow-y-auto p-4 space-y-3 scrollbar">
-        <p class="text-center text-sm text-slate-500 mt-4">Чат будет активен после создания или присоединения к комнате.</p>
+        <!-- Messages will appear here -->
       </div>
 
       <div class="p-4 border-t border-white/5 space-y-2">
         <div class="flex gap-2">
-          <input id="messageInput" type="text" placeholder="Напишите сообщение..." class="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-indigo-400/60" disabled />
-          <button id="sendBtn" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 transition shadow-lg shadow-indigo-900/40" disabled>Отправить</button>
+          <input id="messageInput" type="text" placeholder="Напишите сообщение..." class="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-indigo-400/60" />
+          <button id="sendBtn" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 transition shadow-lg shadow-indigo-900/40">Отправить</button>
         </div>
+        <label class="flex items-center gap-2 text-sm text-slate-400">
+          <input type="checkbox" id="autoScroll" checked class="accent-indigo-500" /> Автопрокрутка
+        </label>
       </div>
     </aside>
+
+    <section class="glass border border-white/10 rounded-2xl shadow-2xl shadow-indigo-900/30 xl:col-span-3">
+      <div class="flex items-center justify-between gap-4 px-5 py-4 border-b border-white/5 flex-wrap">
+        <div>
+          <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Созвон с другом</p>
+          <h2 class="text-xl font-semibold">P2P WebRTC (поделиться ссылкой)</h2>
+        </div>
+        <div class="flex items-center gap-2 text-xs">
+          <span id="callStatus" class="px-3 py-1 rounded-full bg-white/10 border border-white/10 text-slate-200">Ожидает действий</span>
+          <button id="resetCall" class="px-3 py-1 rounded-lg bg-white/10 border border-white/10 hover:bg-white/15">Сбросить звонок</button>
+        </div>
+      </div>
+      <div class="p-5 space-y-5">
+        <div class="grid md:grid-cols-2 gap-5 items-start">
+          <div class="space-y-3">
+            <div class="relative overflow-hidden rounded-xl border border-white/10 bg-slate-900/60 aspect-video flex items-center justify-center">
+              <video id="remoteVideo" class="w-full h-full object-cover" autoplay playsinline></video>
+              <div class="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent pointer-events-none"></div>
+              <div class="absolute top-3 left-3 px-3 py-1 rounded-full bg-black/50 border border-white/10 text-xs">Видео друга</div>
+              <div class="absolute bottom-3 right-3 px-3 py-1 rounded-full bg-black/40 border border-white/10 text-xs text-slate-200">Вы на экране слева</div>
+            </div>
+            <p class="text-sm text-slate-300">Используем вашу камеру и P2P WebRTC. Создайте приглашение, отправьте ссылку другу. Друг открывает ссылку, нажимает «Ответить» и присылает вам ответ. Вставьте его — и связь установится.</p>
+          </div>
+
+          <div class="space-y-4">
+            <div class="p-4 rounded-xl border border-white/10 bg-white/5 space-y-2">
+              <div class="flex items-center justify-between gap-2">
+                <h3 class="font-semibold">Шаг 1. Создать приглашение</h3>
+                <button id="createOfferBtn" class="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm">Создать приглашение</button>
+              </div>
+              <label class="text-xs text-slate-400">Скопируйте ссылку и отправьте другу</label>
+              <div class="flex gap-2">
+                <input id="inviteLink" class="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs" readonly />
+                <button id="copyLink" class="px-3 py-2 rounded-lg bg-white/10 border border-white/10 text-xs">Копия</button>
+                <button id="shareLink" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/70 text-xs">Поделиться</button>
+              </div>
+              <label class="text-xs text-slate-400">Или код приглашения</label>
+              <div class="flex gap-2">
+                <textarea id="inviteOut" rows="2" class="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs"></textarea>
+                <button id="copyInvite" class="px-3 py-2 rounded-lg bg-white/10 border border-white/10 text-xs">Копия</button>
+              </div>
+            </div>
+
+            <div class="p-4 rounded-xl border border-white/10 bg-white/5 space-y-2">
+              <div class="flex items-center justify-between gap-2">
+                <h3 class="font-semibold">Шаг 2. Ответить на приглашение</h3>
+                <button id="answerBtn" class="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm">Ответить и отправить</button>
+              </div>
+              <label class="text-xs text-slate-400">Вставьте код приглашения от друга</label>
+              <textarea id="inviteIn" rows="2" class="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs" placeholder="Вставьте приглашение друга"></textarea>
+              <label class="text-xs text-slate-400">Скопируйте свой ответ и отправьте инициатору</label>
+              <div class="flex gap-2">
+                <textarea id="answerOut" rows="2" class="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs"></textarea>
+                <button id="copyAnswer" class="px-3 py-2 rounded-lg bg-white/10 border border-white/10 text-xs">Копия</button>
+              </div>
+            </div>
+
+            <div class="p-4 rounded-xl border border-white/10 bg-white/5 space-y-2">
+              <div class="flex items-center justify-between gap-2">
+                <h3 class="font-semibold">Шаг 3. Завершить соединение</h3>
+                <button id="acceptAnswerBtn" class="px-3 py-1 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 text-sm">Подключить друга</button>
+              </div>
+              <label class="text-xs text-slate-400">Вставьте ответ, полученный от друга</label>
+              <textarea id="answerIn" rows="2" class="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs" placeholder="Ответ друга"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
-  <!-- Кастомное модальное окно для сообщений -->
-  <div id="modalOverlay" class="grid" onclick="this.style.display='none'">
-    <div id="customModal" class="glass p-6 rounded-xl border border-white/20 shadow-2xl max-w-sm w-full mx-4" onclick="event.stopPropagation()">
-      <h3 id="modalTitle" class="text-xl font-semibold mb-3 text-red-400">Ошибка</h3>
-      <p id="modalBody" class="text-slate-200 mb-4"></p>
-      <button onclick="document.getElementById('modalOverlay').style.display='none'" class="w-full py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 transition">Закрыть</button>
-    </div>
-  </div>
-
-  <!-- Firebase Import -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, getDoc, setDoc, addDoc, onSnapshot, collection, deleteDoc, updateDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-    // --- ГЛОБАЛЬНЫЕ КОНСТАНТЫ И ПЕРЕМЕННЫЕ FIREBASE ---
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-    let app, auth, db;
-    let userId = 'anon';
-    let isAuthReady = false;
-    const PUBLIC_COLLECTION_PATH = `/artifacts/${appId}/public/data`;
-    // ---------------------------------------------------
-
-    // --- ЭЛЕМЕНТЫ DOM (Обновленные/Новые) ---
-    const localVideoEl = document.getElementById('localVideo');
-    const remoteVideoEl = document.getElementById('remoteVideo');
-    const roomIdInput = document.getElementById('roomIdInput');
-    const createRoomBtn = document.getElementById('createRoomBtn');
-    const joinRoomBtn = document.getElementById('joinRoomBtn');
-    const camToggleBtn = document.getElementById('camToggleBtn');
-    const micToggleBtn = document.getElementById('micToggleBtn');
-    const hangupBtn = document.getElementById('hangupBtn');
-    const videoStatusText = document.getElementById('videoStatusText');
-    const currentRoomIdDisplay = document.getElementById('currentRoomIdDisplay');
-    const connectionStatusEl = document.getElementById('connectionStatus');
-    const connectedStatusEl = document.getElementById('connectedStatus');
-    const authStatusEl = document.getElementById('authStatus');
-    const userIdDisplay = document.getElementById('userIdDisplay');
-
+  <script>
     const chat = document.getElementById('chat');
     const messageInput = document.getElementById('messageInput');
     const sendBtn = document.getElementById('sendBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const autoScroll = document.getElementById('autoScroll');
     const userSelect = document.getElementById('userSelect');
-    
-    // Элементы модального окна
-    const modalOverlay = document.getElementById('modalOverlay');
-    const modalTitle = document.getElementById('modalTitle');
-    const modalBody = document.getElementById('modalBody');
-    // ----------------------------------------
+    const viewerCount = document.getElementById('viewerCount');
+    const streamEl = document.getElementById('stream');
+    const muteBtn = document.getElementById('muteBtn');
+    const pipBtn = document.getElementById('pipBtn');
+    const fullBtn = document.getElementById('fullBtn');
+    const startCam = document.getElementById('startCam');
+    const statusText = document.getElementById('statusText');
+    const liveLabel = document.getElementById('liveLabel');
 
-    // --- ПЕРЕМЕННЫЕ WEBRTC ---
-    const configuration = {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-      ]
-    };
+    const remoteVideo = document.getElementById('remoteVideo');
+    const callStatus = document.getElementById('callStatus');
+    const createOfferBtn = document.getElementById('createOfferBtn');
+    const answerBtn = document.getElementById('answerBtn');
+    const acceptAnswerBtn = document.getElementById('acceptAnswerBtn');
+    const resetCall = document.getElementById('resetCall');
+    const inviteOut = document.getElementById('inviteOut');
+    const inviteLink = document.getElementById('inviteLink');
+    const inviteIn = document.getElementById('inviteIn');
+    const answerOut = document.getElementById('answerOut');
+    const answerIn = document.getElementById('answerIn');
+    const copyInvite = document.getElementById('copyInvite');
+    const copyLink = document.getElementById('copyLink');
+    const shareLink = document.getElementById('shareLink');
+    const copyAnswer = document.getElementById('copyAnswer');
 
-    let peerConnection = null;
-    let localStream = null;
-    let remoteStream = null;
-    let currentRoomId = null;
-    let unsubscribeChat = null;
-    let unsubscribeRoom = null;
-    // -------------------------
-
-    // --- СЛУЖЕБНЫЕ ФУНКЦИИ ---
-    
-    /** Отображает кастомное модальное окно вместо alert() */
-    function showCustomModal(title, message) {
-        modalTitle.textContent = title;
-        modalBody.textContent = message;
-        modalTitle.className = `text-xl font-semibold mb-3 ${title.includes('Ошибка') ? 'text-red-400' : 'text-indigo-400'}`;
-        modalOverlay.style.display = 'grid';
-    }
-
-
-    /** Включает/выключает указанные элементы */
-    function setControlsEnabled(enabled) {
-      roomIdInput.disabled = !enabled;
-      createRoomBtn.disabled = !enabled;
-      joinRoomBtn.disabled = !enabled;
-      hangupBtn.disabled = enabled;
-      messageInput.disabled = !enabled;
-      sendBtn.disabled = !enabled;
-    }
-
-    /** Обновляет статус UI */
-    function updateConnectionState(state) {
-        if (state === 'connected') {
-            connectionStatusEl.classList.add('hidden');
-            connectedStatusEl.classList.remove('hidden');
-            videoStatusText.textContent = `Соединение установлено. Комната: ${currentRoomId}`;
-        } else if (state === 'connecting') {
-            connectionStatusEl.classList.remove('hidden');
-            connectedStatusEl.classList.add('hidden');
-            videoStatusText.textContent = 'Подключение... Ожидаем ICE кандидатов.';
-        } else { // disconnected
-            connectionStatusEl.classList.remove('hidden');
-            connectedStatusEl.classList.add('hidden');
-            videoStatusText.textContent = currentRoomId ? `Соединение разорвано. Комната ${currentRoomId}.` : 'Ожидание подключения.';
-            currentRoomIdDisplay.textContent = currentRoomId || 'Нет';
-        }
-    }
-    
-    /** Получает локальный медиапоток (камера и микрофон) */
-    async function getLocalStream() {
-      try {
-        localStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 640 }, height: { ideal: 480 } },
-          audio: true
-        });
-        localVideoEl.srcObject = localStream;
-        localVideoEl.classList.remove('hidden');
-        camToggleBtn.textContent = '📹 Камера (ВКЛ)';
-        micToggleBtn.textContent = '🎤 Микрофон (ВКЛ)';
-        return true; // Успех
-      } catch (e) {
-        console.error("Не удалось получить доступ к медиа устройствам:", e);
-        videoStatusText.textContent = 'ОШИБКА: Нет доступа к камере/микрофону.';
-        showCustomModal('Ошибка доступа', 'Не удалось получить доступ к камере или микрофону. Разрешите доступ в браузере.');
-        // Создаем пустой поток, чтобы не ломать WebRTC
-        localStream = new MediaStream(); 
-        camToggleBtn.textContent = '📹 Камера (ОТКЛ)';
-        micToggleBtn.textContent = '🎤 Микрофон (ОТКЛ)';
-        return false; // Провал
-      }
-    }
-
-    /** Сброс всех ресурсов */
-    function hangup() {
-      // Удаляем слушателей Firestore, чтобы предотвратить утечки
-      if (unsubscribeChat) {
-        unsubscribeChat();
-      }
-      if (unsubscribeRoom) {
-        unsubscribeRoom();
-      }
-
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-      }
-      if (peerConnection) {
-        peerConnection.close();
-      }
-      
-      localStream = null;
-      peerConnection = null;
-      remoteVideoEl.srcObject = null;
-      localVideoEl.srcObject = null;
-      localVideoEl.classList.add('hidden');
-      currentRoomId = null;
-
-      updateConnectionState('disconnected');
-      setControlsEnabled(true);
-      hangupBtn.disabled = true;
-      roomIdInput.value = '';
-      chat.innerHTML = '<p class="text-center text-sm text-slate-500 mt-4">Чат будет активен после создания или присоединения к комнате.</p>';
-    }
-
-    // --- ЛОГИКА WEBRTC ---
-
-    /** Настройка RTCPeerConnection с указанием коллекции для записи локальных кандидатов */
-    function setupPeerConnection(roomId, localCandidatesCollectionRef) {
-      peerConnection = new RTCPeerConnection(configuration);
-
-      // Добавляем локальные треки в PeerConnection
-      if (localStream) {
-        localStream.getTracks().forEach(track => {
-          // Заменяем треки, если соединение было уже установлено
-          if (peerConnection.getSenders().find(sender => sender.track === track)) return;
-          peerConnection.addTrack(track, localStream);
-        });
-      }
-
-      // Обработка получения удаленного потока
-      remoteStream = new MediaStream();
-      peerConnection.ontrack = (event) => {
-        event.streams[0].getTracks().forEach(track => {
-          remoteStream.addTrack(track);
-        });
-        remoteVideoEl.srcObject = remoteStream;
-      };
-
-      // Обработка состояния подключения
-      peerConnection.oniceconnectionstatechange = () => {
-        console.log('ICE state:', peerConnection.iceConnectionState);
-        if (peerConnection.iceConnectionState === 'connected' || peerConnection.iceConnectionState === 'completed') {
-            updateConnectionState('connected');
-        } else if (peerConnection.iceConnectionState === 'failed' || peerConnection.iceConnectionState === 'disconnected') {
-            updateConnectionState('connecting');
-        } else if (peerConnection.iceConnectionState === 'closed') {
-            hangup();
-        }
-      };
-
-      // СЛУШАЕМ ЛОКАЛЬНЫЕ ICE КАНДИДАТЫ И ОТПРАВЛЯЕМ ИХ В FIRESTORE (ИСПРАВЛЕНО!)
-      peerConnection.onicecandidate = async (event) => {
-        if (event.candidate && localCandidatesCollectionRef) {
-          console.log('Отправка локального ICE кандидата в:', localCandidatesCollectionRef.path);
-          await addDoc(localCandidatesCollectionRef, event.candidate.toJSON());
-        }
-      };
-    }
-
-    /** 1. Создание комнаты (Offer) */
-    async function createRoom() {
-      if (!isAuthReady) return showCustomModal('Ошибка', 'Ожидается авторизация Firebase.');
-      
-      // Получаем медиа. Если не удалось, прерываем создание.
-      if (!(await getLocalStream())) return; 
-
-      const roomId = Math.random().toString(36).substring(2, 9);
-      currentRoomId = roomId;
-      
-      const roomRef = doc(db, PUBLIC_COLLECTION_PATH, 'rooms', roomId);
-      const offerCandidatesCollection = collection(roomRef, 'offerCandidates');
-      const answerCandidatesCollection = collection(roomRef, 'answerCandidates');
-
-      setupPeerConnection(roomId, offerCandidatesCollection); // !!! ИСПРАВЛЕНО: передаем коллекцию для записи Offer-кандидатов
-      setControlsEnabled(false);
-      hangupBtn.disabled = false;
-      
-      currentRoomIdDisplay.textContent = roomId;
-      updateConnectionState('connecting');
-
-      try {
-        // Создаем Offer
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        
-        console.log('Создан Offer, записываем в Firestore.');
-
-        const roomWithOffer = {
-          offer: {
-            type: offer.type,
-            sdp: offer.sdp,
-          },
-          createdAt: serverTimestamp(),
-          creatorId: userId,
-        };
-
-        await setDoc(roomRef, roomWithOffer);
-        showCustomModal('Комната создана', `ID: ${roomId}. Передайте его другу, чтобы он присоединился.`);
-        
-        // Начинаем слушать Answer
-        unsubscribeRoom = onSnapshot(roomRef, async (snapshot) => {
-          const data = snapshot.data();
-          if (data && data.answer && !peerConnection.currentRemoteDescription) {
-            console.log('Получен Answer, устанавливаем удаленное описание.');
-            const answerDesc = new RTCSessionDescription(data.answer);
-            await peerConnection.setRemoteDescription(answerDesc);
-            
-            // Начинаем слушать ICE кандидатов от отвечающего
-            // Мы не останавливаем onSnapshot, так как нам нужно отслеживать удаление комнаты
-            listenForCandidates(answerCandidatesCollection);
-          }
-        });
-        
-        // Слушаем ICE кандидатов, которые придут от отвечающего
-        // Оферер ждет Answer-кандидатов, которые сгенерировал присоединившийся
-        
-        // Запускаем чат
-        setupChat(roomId);
-
-      } catch (e) {
-        console.error('Ошибка при создании комнаты:', e);
-        showCustomModal('Критическая ошибка WebRTC', `Не удалось создать или записать Offer. Код ошибки: ${e.message}`);
-        hangup();
-      }
-    }
-
-    /** 2. Присоединение к комнате (Answer) */
-    async function joinRoom() {
-      if (!isAuthReady) return showCustomModal('Ошибка', 'Ожидается авторизация Firebase.');
-      const roomId = roomIdInput.value.trim();
-      if (!roomId) return showCustomModal('Ошибка', 'Пожалуйста, введите ID комнаты.');
-
-      // Получаем медиа. Если не удалось, прерываем присоединение.
-      if (!(await getLocalStream())) return; 
-
-      currentRoomId = roomId;
-      
-      const roomRef = doc(db, PUBLIC_COLLECTION_PATH, 'rooms', roomId);
-      const offerCandidatesCollection = collection(roomRef, 'offerCandidates');
-      const answerCandidatesCollection = collection(roomRef, 'answerCandidates');
-      
-      setupPeerConnection(roomId, answerCandidatesCollection); // !!! ИСПРАВЛЕНО: передаем коллекцию для записи Answer-кандидатов
-      setControlsEnabled(false);
-      hangupBtn.disabled = false;
-      
-      currentRoomIdDisplay.textContent = roomId;
-      updateConnectionState('connecting');
-
-      try {
-        const roomSnapshot = await getDoc(roomRef);
-        if (!roomSnapshot.exists()) {
-          showCustomModal('Ошибка', 'Комната не найдена. Проверьте ID.');
-          hangup();
-          return;
-        }
-        
-        const offer = roomSnapshot.data().offer;
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-        
-        // Создаем Answer
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-
-        const roomWithAnswer = {
-          answer: {
-            type: answer.type,
-            sdp: answer.sdp,
-          },
-          joinedAt: serverTimestamp(),
-          joinerId: userId,
-        };
-
-        await updateDoc(roomRef, roomWithAnswer);
-        console.log('Отправлен Answer.');
-
-        // Начинаем слушать ICE кандидатов от создающего
-        listenForCandidates(offerCandidatesCollection);
-        
-        // Запускаем чат
-        setupChat(roomId);
-
-      } catch (e) {
-        console.error('Ошибка при присоединении к комнате:', e);
-        showCustomModal('Критическая ошибка WebRTC', `Не удалось присоединиться или записать Answer. Код ошибки: ${e.message}`);
-        hangup();
-      }
-    }
-
-    /** Слушатель ICE кандидатов с удаленной стороны */
-    function listenForCandidates(collectionRef) {
-      onSnapshot(collectionRef, (snapshot) => {
-        snapshot.docChanges().forEach(async (change) => {
-          if (change.type === 'added') {
-            const candidate = new RTCIceCandidate(change.doc.data());
-            try {
-              await peerConnection.addIceCandidate(candidate);
-              console.log('Добавлен ICE кандидат с удаленной стороны:', collectionRef.path);
-            } catch (e) {
-              console.error('Ошибка при добавлении ICE кандидата:', e);
-            }
-          }
-        });
-      });
-    }
-
-    // --- ЛОГИКА ЧАТА (Firestore) ---
+    const demoFallback = 'https://cdn.coverr.co/videos/coverr-tech-meeting-1607/1080p.mp4';
+    let cameraStream = null;
 
     const badges = {
       Alex: 'Ведущий',
@@ -499,162 +205,342 @@
       DevGuru: 'from-amber-500 to-orange-500',
       Guest: 'from-slate-500 to-slate-700'
     };
-    
-    function renderMessage(user, text, timestamp) {
+
+    const sampleMessages = [
+      { user: 'Alex', text: 'Привет всем! Начинаем стрим 🚀' },
+      { user: 'Maria', text: 'Напоминаю: задавайте вопросы в чате!' },
+      { user: 'DevGuru', text: 'Кто пробовал новый фреймворк? 😎' },
+      { user: 'Guest', text: 'Всем привет, рад быть здесь!' }
+    ];
+
+    function addMessage(user, text) {
       const wrap = document.createElement('div');
       wrap.className = 'p-3 rounded-xl bg-white/5 border border-white/5 shadow-sm shadow-black/20';
 
       const head = document.createElement('div');
-      head.className = 'flex items-center justify-between mb-1';
-
-      const userInfo = document.createElement('div');
-      userInfo.className = 'flex items-center gap-2';
+      head.className = 'flex items-center gap-2 mb-1';
 
       const avatar = document.createElement('div');
-      avatar.className = `h-8 w-8 rounded-full bg-gradient-to-br ${colors[user] || 'from-slate-500 to-slate-700'} flex items-center justify-center text-xs font-semibold uppercase flex-shrink-0`;
+      avatar.className = `h-8 w-8 rounded-full bg-gradient-to-br ${colors[user] || 'from-slate-500 to-slate-700'} flex items-center justify-center text-xs font-semibold uppercase`;
       avatar.textContent = user.slice(0, 2);
 
       const name = document.createElement('div');
-      name.className = 'flex items-center gap-2 truncate';
+      name.className = 'flex items-center gap-2';
       const userEl = document.createElement('span');
       userEl.className = 'font-semibold';
       userEl.textContent = user;
       const badge = document.createElement('span');
-      badge.className = 'text-[11px] px-2 py-[2px] rounded-full bg-white/10 border border-white/10 text-slate-200 flex-shrink-0';
+      badge.className = 'text-[11px] px-2 py-[2px] rounded-full bg-white/10 border border-white/10 text-slate-200';
       badge.textContent = badges[user] || 'Зритель';
       name.append(userEl, badge);
-      userInfo.append(avatar, name);
 
-      const timeEl = document.createElement('span');
-      timeEl.className = 'text-xs text-slate-500 flex-shrink-0';
-      if (timestamp && timestamp.seconds) { // Проверяем наличие seconds, так как serverTimestamp() сначала null
-        timeEl.textContent = new Date(timestamp.seconds * 1000).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-      }
-
-      head.append(userInfo, timeEl);
+      head.append(avatar, name);
 
       const body = document.createElement('p');
-      body.className = 'text-sm text-slate-200 leading-relaxed break-words';
+      body.className = 'text-sm text-slate-200 leading-relaxed';
       body.textContent = text;
 
       wrap.append(head, body);
       chat.appendChild(wrap);
-      chat.scrollTo({ top: chat.scrollHeight, behavior: 'smooth' });
-    }
-
-    /** Отправка сообщения в Firestore */
-    async function sendMessage() {
-      const text = messageInput.value.trim();
-      const user = userSelect.value;
-      if (!text || !currentRoomId) return;
-
-      try {
-        const chatCollectionRef = collection(db, PUBLIC_COLLECTION_PATH, 'rooms', currentRoomId, 'messages');
-        await addDoc(chatCollectionRef, {
-          user: user,
-          text: text,
-          userId: userId,
-          timestamp: serverTimestamp(),
-        });
-        messageInput.value = '';
-        messageInput.focus();
-      } catch (e) {
-        console.error("Ошибка при отправке сообщения:", e);
-        showCustomModal('Ошибка чата', 'Не удалось отправить сообщение. Проверьте подключение и правила Firestore.');
+      if (autoScroll.checked) {
+        chat.scrollTo({ top: chat.scrollHeight, behavior: 'smooth' });
       }
     }
 
-    /** Настройка прослушивания чата Firestore */
-    function setupChat(roomId) {
-      chat.innerHTML = '';
-      const chatCollectionRef = collection(db, PUBLIC_COLLECTION_PATH, 'rooms', roomId, 'messages');
-      // Запрос с сортировкой по timestamp
-      const q = query(chatCollectionRef, orderBy('timestamp'));
-
-      unsubscribeChat = onSnapshot(q, (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === 'added') {
-            const data = change.doc.data();
-            renderMessage(data.user, data.text, data.timestamp);
-          }
-        });
-      }, (error) => {
-        console.error("Ошибка прослушивания чата:", error);
-      });
+    function sendMessage() {
+      const text = messageInput.value.trim();
+      const user = userSelect.value;
+      if (!text) return;
+      addMessage(user, text);
+      messageInput.value = '';
+      messageInput.focus();
     }
-
-    // --- ОБРАБОТЧИКИ КНОПОК И УПРАВЛЕНИЕ МЕДИА ---
-
-    createRoomBtn.addEventListener('click', createRoom);
-    joinRoomBtn.addEventListener('click', joinRoom);
-    hangupBtn.addEventListener('click', hangup);
-    
-    // Очистка локального чата
-    document.getElementById('clearChatBtn').addEventListener('click', () => {
-        chat.innerHTML = '<p class="text-center text-sm text-slate-500 mt-4">Чат очищен локально.</p>';
-    });
 
     sendBtn.addEventListener('click', sendMessage);
     messageInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') sendMessage();
     });
-
-    camToggleBtn.addEventListener('click', () => {
-        if (!localStream) return showCustomModal('Ошибка', 'Сначала создайте или присоединитесь к комнате.');
-        const videoTrack = localStream.getVideoTracks()[0];
-        if (videoTrack) {
-            videoTrack.enabled = !videoTrack.enabled;
-            camToggleBtn.textContent = videoTrack.enabled ? '📹 Камера (ВКЛ)' : '📹 Камера (ОТКЛ)';
-        }
+    clearBtn.addEventListener('click', () => {
+      chat.innerHTML = '';
     });
 
-    micToggleBtn.addEventListener('click', () => {
-        if (!localStream) return showCustomModal('Ошибка', 'Сначала создайте или присоединитесь к комнате.');
-        const audioTrack = localStream.getAudioTracks()[0];
-        if (audioTrack) {
-            audioTrack.enabled = !audioTrack.enabled;
-            micToggleBtn.textContent = audioTrack.enabled ? '🎤 Микрофон (ВКЛ)' : '🎤 Микрофон (ОТКЛ)';
-        }
+    muteBtn.addEventListener('click', () => {
+      streamEl.muted = !streamEl.muted;
+      muteBtn.textContent = streamEl.muted ? '🔇 Без звука' : '🔈 Звук';
     });
 
-    // --- ИНИЦИАЛИЗАЦИЯ FIREBASE ---
-
-    async function initializeFirebase() {
-      authStatusEl.textContent = 'Подключение...';
+    pipBtn.addEventListener('click', async () => {
       try {
-        app = initializeApp(firebaseConfig);
-        db = getFirestore(app);
-        auth = getAuth(app);
-        
-        // Аутентификация: используем токен, если он есть, иначе анонимный вход.
-        if (initialAuthToken) {
-          await signInWithCustomToken(auth, initialAuthToken);
+        if (document.pictureInPictureElement) {
+          await document.exitPictureInPicture();
         } else {
-          await signInAnonymously(auth);
-        }
-
-        onAuthStateChanged(auth, (user) => {
-          if (user) {
-            userId = user.uid;
-            isAuthReady = true;
-            authStatusEl.textContent = 'Авторизован';
-            userIdDisplay.textContent = userId.substring(0, 8) + '...';
-            console.log("Firebase/Auth готов. User ID:", userId);
-            updateConnectionState('disconnected'); // Сброс статуса
-          } else {
-            authStatusEl.textContent = 'Ошибка авторизации';
-            console.error("Firebase/Auth не готов.");
+          if (!streamEl.disablePictureInPicture) {
+            await streamEl.requestPictureInPicture();
           }
-        });
-      } catch (e) {
-        console.error("Ошибка инициализации Firebase:", e);
-        authStatusEl.textContent = 'ОШИБКА FIREBASE';
+        }
+      } catch (err) {
+        alert('PiP недоступен в этом браузере');
+      }
+    });
+
+    fullBtn.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        streamEl.requestFullscreen?.();
+      } else {
+        document.exitFullscreen?.();
+      }
+    });
+
+    function stopCameraTracks() {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(t => t.stop());
+        cameraStream = null;
       }
     }
 
-    // Запуск приложения
-    window.onload = initializeFirebase;
-    setControlsEnabled(true); // Изначально разрешаем только создать/присоединиться
+    async function startCamera() {
+      statusText.textContent = 'Запрашиваем камеру...';
+      liveLabel.textContent = 'Подключение...';
+      startCam.disabled = true;
+      startCam.classList.add('opacity-70');
+      stopCameraTracks();
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+        cameraStream = stream;
+        streamEl.srcObject = stream;
+        streamEl.muted = true;
+        await streamEl.play();
+        statusText.textContent = 'Камера активна — вы в кадре';
+        liveLabel.textContent = 'Вы в эфире';
+        startCam.textContent = '🔄 Перезапустить камеру';
+      } catch (err) {
+        console.warn('Камера недоступна, включаем демо', err);
+        statusText.textContent = 'Камера недоступна — показ демо';
+        liveLabel.textContent = 'Демо стрим';
+        streamEl.srcObject = null;
+        streamEl.src = demoFallback;
+        streamEl.muted = true;
+        streamEl.loop = true;
+        await streamEl.play().catch(() => {});
+        startCam.textContent = 'Повторить запрос камеры';
+        cameraStream = null;
+      } finally {
+        startCam.disabled = false;
+        startCam.classList.remove('opacity-70');
+      }
+      return cameraStream;
+    }
+
+    startCam.addEventListener('click', startCamera);
+
+    // Fake viewer counter pulse
+    setInterval(() => {
+      const base = 3482;
+      const jitter = Math.floor(Math.random() * 40) - 20;
+      viewerCount.textContent = (base + jitter).toLocaleString('ru-RU');
+    }, 2000);
+
+    // Seed messages
+    sampleMessages.forEach(m => addMessage(m.user, m.text));
+
+    // --- WebRTC Call Logic ---
+    let pc = null;
+    let gatheredCandidates = [];
+    const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+    function setCallStatus(text, tone = 'neutral') {
+      const colors = {
+        neutral: 'bg-white/10 border-white/10 text-slate-200',
+        info: 'bg-indigo-500/20 border-indigo-400/50 text-indigo-100',
+        success: 'bg-emerald-500/20 border-emerald-400/50 text-emerald-100',
+        error: 'bg-rose-500/20 border-rose-400/60 text-rose-100'
+      };
+      callStatus.textContent = text;
+      callStatus.className = `px-3 py-1 rounded-full text-xs ${colors[tone] || colors.neutral}`;
+    }
+
+    function resetPeer() {
+      if (pc) {
+        try { pc.ontrack = null; pc.onicecandidate = null; pc.onconnectionstatechange = null; pc.close(); } catch (e) {}
+      }
+      pc = null;
+      gatheredCandidates = [];
+      remoteVideo.srcObject = null;
+      setCallStatus('Ожидает действий');
+    }
+
+    resetCall.addEventListener('click', resetPeer);
+
+    async function ensureCameraStream(required = false) {
+      if (cameraStream) return cameraStream;
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCallStatus('Камера не поддерживается', 'error');
+        return null;
+      }
+      const stream = await startCamera();
+      if (!stream && required) {
+        setCallStatus('Нужна доступная камера для звонка', 'error');
+      }
+      return stream;
+    }
+
+    function waitForIceComplete(connection) {
+      return new Promise(resolve => {
+        if (!connection) return resolve();
+        if (connection.iceGatheringState === 'complete') return resolve();
+        const checkState = () => {
+          if (connection.iceGatheringState === 'complete') {
+            connection.removeEventListener('icegatheringstatechange', checkState);
+            resolve();
+          }
+        };
+        connection.addEventListener('icegatheringstatechange', checkState);
+        setTimeout(resolve, 2000);
+      });
+    }
+
+    function buildPackage(desc) {
+      return btoa(JSON.stringify({ sdp: desc, candidates: gatheredCandidates }));
+    }
+
+    function parsePackage(str) {
+      try {
+        const parsed = JSON.parse(atob(str.trim()));
+        parsed.sdp = new RTCSessionDescription(parsed.sdp);
+        parsed.candidates = (parsed.candidates || []).map(c => new RTCIceCandidate(c));
+        return parsed;
+      } catch (err) {
+        alert('Неверные данные приглашения/ответа');
+        return null;
+      }
+    }
+
+    function createPeerConnection() {
+      resetPeer();
+      pc = new RTCPeerConnection(rtcConfig);
+      gatheredCandidates = [];
+      pc.onicecandidate = (event) => {
+        if (event.candidate) gatheredCandidates.push(event.candidate.toJSON());
+      };
+      pc.ontrack = (event) => {
+        remoteVideo.srcObject = event.streams[0];
+        remoteVideo.play().catch(() => {});
+        setCallStatus('Друг в эфире', 'success');
+      };
+      pc.onconnectionstatechange = () => {
+        const st = pc.connectionState;
+        if (st === 'connected') setCallStatus('Соединение установлено', 'success');
+        else if (st === 'connecting') setCallStatus('Подключаемся...', 'info');
+        else if (['failed', 'disconnected'].includes(st)) setCallStatus('Соединение прервано', 'error');
+      };
+      return pc;
+    }
+
+    async function createInvite() {
+      try {
+        setCallStatus('Создаем приглашение...', 'info');
+        const stream = await ensureCameraStream(true);
+        if (!stream) return;
+        const peer = createPeerConnection();
+        stream.getTracks().forEach(t => peer.addTrack(t, stream));
+        const offer = await peer.createOffer();
+        await peer.setLocalDescription(offer);
+        await waitForIceComplete(peer);
+        const pkg = buildPackage(peer.localDescription);
+        inviteOut.value = pkg;
+        inviteLink.value = `${location.origin}${location.pathname}#invite=${pkg}`;
+        setCallStatus('Скопируйте ссылку и отправьте другу', 'success');
+      } catch (err) {
+        console.error(err);
+        setCallStatus('Не удалось создать приглашение', 'error');
+      }
+    }
+
+    async function answerInvite() {
+      const inbound = inviteIn.value.trim();
+      if (!inbound) return alert('Вставьте приглашение от друга');
+      const parsed = parsePackage(inbound);
+      if (!parsed) return;
+      try {
+        setCallStatus('Формируем ответ...', 'info');
+        const stream = await ensureCameraStream(true);
+        if (!stream) return;
+        const peer = createPeerConnection();
+        stream.getTracks().forEach(t => peer.addTrack(t, stream));
+        await peer.setRemoteDescription(parsed.sdp);
+        for (const c of parsed.candidates) await peer.addIceCandidate(c).catch(()=>{});
+        const answer = await peer.createAnswer();
+        await peer.setLocalDescription(answer);
+        await waitForIceComplete(peer);
+        const pkg = buildPackage(peer.localDescription);
+        answerOut.value = pkg;
+        setCallStatus('Ответ готов — отправьте инициатору', 'success');
+      } catch (err) {
+        console.error(err);
+        setCallStatus('Ошибка при ответе на приглашение', 'error');
+      }
+    }
+
+    async function acceptAnswer() {
+      const inbound = answerIn.value.trim();
+      if (!inbound) return alert('Вставьте ответ друга');
+      const parsed = parsePackage(inbound);
+      if (!parsed) return;
+      if (!pc) {
+        setCallStatus('Сначала создайте приглашение', 'error');
+        return;
+      }
+      try {
+        await pc.setRemoteDescription(parsed.sdp);
+        for (const c of parsed.candidates) await pc.addIceCandidate(c).catch(()=>{});
+        setCallStatus('Ответ принят, ждем соединения...', 'info');
+      } catch (err) {
+        console.error(err);
+        setCallStatus('Не удалось применить ответ', 'error');
+      }
+    }
+
+    async function copyToClipboard(el) {
+      if (!el.value) return;
+      try {
+        await navigator.clipboard.writeText(el.value);
+        setCallStatus('Скопировано в буфер обмена', 'success');
+      } catch {
+        setCallStatus('Не удалось скопировать', 'error');
+      }
+    }
+
+    createOfferBtn.addEventListener('click', createInvite);
+    answerBtn.addEventListener('click', answerInvite);
+    acceptAnswerBtn.addEventListener('click', acceptAnswer);
+    copyInvite.addEventListener('click', () => copyToClipboard(inviteOut));
+    copyLink.addEventListener('click', () => copyToClipboard(inviteLink));
+    copyAnswer.addEventListener('click', () => copyToClipboard(answerOut));
+
+    shareLink.addEventListener('click', async () => {
+      if (!inviteLink.value) return setCallStatus('Сначала создайте приглашение', 'error');
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: 'P2P звонок', text: 'Зайди по ссылке, чтобы созвониться', url: inviteLink.value });
+          setCallStatus('Ссылка отправлена', 'success');
+        } catch (err) {
+          setCallStatus('Не удалось поделиться', 'error');
+        }
+      } else {
+        copyToClipboard(inviteLink);
+      }
+    });
+
+    // Если страница открыта по ссылке-приглашению, заполнить автоматически
+    if (location.hash.startsWith('#invite=')) {
+      const payload = location.hash.replace('#invite=', '');
+      inviteIn.value = payload;
+      setCallStatus('Получено приглашение, нажмите «Ответить и отправить»', 'info');
+    }
+
+    // Автостарт камеры (сразу попросим разрешение)
+    startCamera();
   </script>
 </body>
 </html>
