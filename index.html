@@ -22,14 +22,18 @@
 
   <header class="flex items-center justify-between px-6 py-4 border-b border-white/10 glass sticky top-0 z-20">
     <div class="flex items-center gap-3">
-      <div class="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center font-bold text-xl">▶</div>
+      <div class="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center font-bold text-xl">
+        ▶
+      </div>
       <div>
         <p class="text-sm uppercase tracking-[0.25em] text-slate-300">Live stream</p>
         <h1 class="text-2xl font-semibold">Tech & Chill</h1>
       </div>
     </div>
     <div class="flex items-center gap-3 text-sm">
-      <div class="px-3 py-1 rounded-full bg-white/10 border border-white/10">Зрителей: <span id="viewerCount">3 482</span></div>
+      <div class="px-3 py-1 rounded-full bg-white/10 border border-white/10">
+        Зрителей: <span id="viewerCount">3 482</span>
+      </div>
       <div class="px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-100">LIVE</div>
     </div>
   </header>
@@ -48,10 +52,18 @@
           <span id="statusText">Готовим камеру...</span>
         </div>
         <div class="flex items-center gap-2 text-sm">
-          <button id="startCam" class="px-3 py-1 rounded-lg bg-indigo-600 border border-indigo-500 hover:bg-indigo-500 transition shadow-lg shadow-indigo-900/40">📷 Включить камеру</button>
-          <button id="muteBtn" class="px-3 py-1 rounded-lg bg-white/10 border border-white/10 hover:bg-white/15 transition">🔈 Звук</button>
-          <button id="pipBtn" class="px-3 py-1 rounded-lg bg-white/10 border border-white/10 hover:bg-white/15 transition">🖼️ PiP</button>
-          <button id="fullBtn" class="px-3 py-1 rounded-lg bg-white/10 border border-white/10 hover:bg-white/15 transition">⛶ Полный экран</button>
+          <button id="startCam" class="px-3 py-1 rounded-lg bg-indigo-600 border border-indigo-500 hover:bg-indigo-500 transition shadow-lg shadow-indigo-900/40">
+            📷 Включить камеру
+          </button>
+          <button id="muteBtn" class="px-3 py-1 rounded-lg bg-white/10 border border-white/10 hover:bg-white/15 transition">
+            🔈 Звук
+          </button>
+          <button id="pipBtn" class="px-3 py-1 rounded-lg bg-white/10 border border-white/10 hover:bg-white/15 transition">
+            🖼️ PiP
+          </button>
+          <button id="fullBtn" class="px-3 py-1 rounded-lg bg-white/10 border border-white/10 hover:bg-white/15 transition">
+            ⛶ Полный экран
+          </button>
         </div>
       </div>
     </section>
@@ -64,10 +76,8 @@
         </div>
         <div class="flex items-center gap-2">
           <select id="userSelect" class="bg-white/10 border border-white/10 rounded-lg px-2 py-1 text-sm focus:outline-none">
-            <option>Alex</option>
-            <option>Maria</option>
-            <option>DevGuru</option>
-            <option>Guest</option>
+            <option>Вы</option>
+            <option>Друг</option>
           </select>
           <button id="clearBtn" class="text-xs px-2 py-1 rounded bg-white/10 border border-white/10 hover:bg-white/15">Очистить</button>
         </div>
@@ -79,8 +89,15 @@
 
       <div class="p-4 border-t border-white/5 space-y-2">
         <div class="flex gap-2">
-          <input id="messageInput" type="text" placeholder="Напишите сообщение..." class="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-indigo-400/60" />
-          <button id="sendBtn" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 transition shadow-lg shadow-indigo-900/40">Отправить</button>
+          <input
+            id="messageInput"
+            type="text"
+            placeholder="Напишите сообщение..."
+            class="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-indigo-400/60"
+          />
+          <button id="sendBtn" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 transition shadow-lg shadow-indigo-900/40">
+            Отправить
+          </button>
         </div>
         <label class="flex items-center gap-2 text-sm text-slate-400">
           <input type="checkbox" id="autoScroll" checked class="accent-indigo-500" /> Автопрокрутка
@@ -92,7 +109,7 @@
       <div class="flex items-center justify-between gap-4 px-5 py-4 border-b border-white/5 flex-wrap">
         <div>
           <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Созвон с другом</p>
-          <h2 class="text-xl font-semibold">P2P WebRTC (обмен кодами)</h2>
+          <h2 class="text-xl font-semibold">P2P WebRTC (поделиться кодом)</h2>
         </div>
         <div class="flex items-center gap-2 text-xs">
           <span id="callStatus" class="px-3 py-1 rounded-full bg-white/10 border border-white/10 text-slate-200">Ожидает действий</span>
@@ -100,51 +117,42 @@
         </div>
       </div>
       <div class="p-5 space-y-5">
-        <div class="grid md:grid-cols-2 gap-5 items-start">
-          <div class="space-y-3">
-            <div class="relative overflow-hidden rounded-xl border border-white/10 bg-slate-900/60 aspect-video flex items-center justify-center">
-              <video id="remoteVideo" class="w-full h-full object-cover" autoplay playsinline></video>
-              <div class="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent pointer-events-none"></div>
-              <div class="absolute top-3 left-3 px-3 py-1 rounded-full bg-black/50 border border-white/10 text-xs">Видео друга</div>
-              <div class="absolute bottom-3 right-3 px-3 py-1 rounded-full bg-black/40 border border-white/10 text-xs text-slate-200">Вы на экране слева</div>
-            </div>
-            <p class="text-sm text-slate-300">Используем вашу камеру и P2P WebRTC. Создайте приглашение, скопируйте короткий код и отправьте другу. Друг вставляет код, нажимает «Ответить и отправить», присылает вам ответ. Вставьте его — и связь установится.</p>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div class="relative overflow-hidden rounded-xl border border-white/10 bg-slate-900/60 aspect-video flex items-center justify-center">
+            <video id="stream" class="w-full h-full object-cover" autoplay muted playsinline></video>
+            <div class="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent pointer-events-none"></div>
+            <div class="absolute top-3 left-3 px-3 py-1 rounded-full bg-black/50 border border-white/10 text-xs">Вы</div>
           </div>
-
-          <div class="space-y-4">
-            <div class="p-4 rounded-xl border border-white/10 bg-white/5 space-y-2">
-              <div class="flex items-center justify-between gap-2">
-                <h3 class="font-semibold">Шаг 1. Создать приглашение</h3>
-                <button id="createOfferBtn" class="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm">Создать приглашение</button>
-              </div>
-              <label class="text-xs text-slate-400">Сжатый код приглашения — скопируйте и отправьте другу</label>
+          <div class="relative overflow-hidden rounded-xl border border-white/10 bg-slate-900/60 aspect-video flex items-center justify-center">
+            <video id="remoteVideo" class="w-full h-full object-cover" autoplay playsinline></video>
+            <div class="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent pointer-events-none"></div>
+            <div class="absolute top-3 left-3 px-3 py-1 rounded-full bg-black/50 border border-white/10 text-xs">Друг</div>
+          </div>
+        </div>
+        
+        <div class="p-4 rounded-xl border border-white/10 bg-white/5 space-y-4">
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="font-semibold">Позвонить другу</h3>
+            <div class="flex gap-2">
+              <button id="createOfferBtn" class="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm">Создать код</button>
+              <button id="connectBtn" class="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm">Подключиться</button>
+            </div>
+          </div>
+          
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <label class="text-xs text-slate-400">Ваш код (отправьте другу)</label>
               <div class="flex gap-2">
-                <textarea id="inviteOut" rows="2" class="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs" placeholder="Нажмите «Создать приглашение»"></textarea>
-                <button id="copyInvite" class="px-3 py-2 rounded-lg bg-white/10 border border-white/10 text-xs">Копия</button>
+                <textarea id="inviteOut" rows="2" class="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs font-mono" placeholder="Нажмите "Создать код""></textarea>
+                <button id="copyInvite" class="px-3 py-2 rounded-lg bg-white/10 border border-white/10 text-xs whitespace-nowrap">Копия</button>
               </div>
             </div>
-
-            <div class="p-4 rounded-xl border border-white/10 bg-white/5 space-y-2">
-              <div class="flex items-center justify-between gap-2">
-                <h3 class="font-semibold">Шаг 2. Ответить на приглашение</h3>
-                <button id="answerBtn" class="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm">Ответить и отправить</button>
-              </div>
-              <label class="text-xs text-slate-400">Вставьте код приглашения от друга</label>
-              <textarea id="inviteIn" rows="2" class="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs" placeholder="Вставьте приглашение друга"></textarea>
-              <label class="text-xs text-slate-400">Скопируйте свой ответ и отправьте инициатору</label>
+            
+            <div class="space-y-2">
+              <label class="text-xs text-slate-400">Код друга</label>
               <div class="flex gap-2">
-                <textarea id="answerOut" rows="2" class="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs" placeholder="После «Ответить и отправить»"></textarea>
-                <button id="copyAnswer" class="px-3 py-2 rounded-lg bg-white/10 border border-white/10 text-xs">Копия</button>
+                <textarea id="inviteIn" rows="2" class="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs font-mono" placeholder="Вставьте код друга"></textarea>
               </div>
-            </div>
-
-            <div class="p-4 rounded-xl border border-white/10 bg-white/5 space-y-2">
-              <div class="flex items-center justify-between gap-2">
-                <h3 class="font-semibold">Шаг 3. Завершить соединение</h3>
-                <button id="acceptAnswerBtn" class="px-3 py-1 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 text-sm">Подключить друга</button>
-              </div>
-              <label class="text-xs text-slate-400">Вставьте ответ, полученный от друга</label>
-              <textarea id="answerIn" rows="2" class="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs" placeholder="Ответ друга"></textarea>
             </div>
           </div>
         </div>
@@ -171,38 +179,28 @@
     const remoteVideo = document.getElementById('remoteVideo');
     const callStatus = document.getElementById('callStatus');
     const createOfferBtn = document.getElementById('createOfferBtn');
-    const answerBtn = document.getElementById('answerBtn');
-    const acceptAnswerBtn = document.getElementById('acceptAnswerBtn');
+    const connectBtn = document.getElementById('connectBtn');
     const resetCall = document.getElementById('resetCall');
     const inviteOut = document.getElementById('inviteOut');
     const inviteIn = document.getElementById('inviteIn');
-    const answerOut = document.getElementById('answerOut');
-    const answerIn = document.getElementById('answerIn');
     const copyInvite = document.getElementById('copyInvite');
-    const copyAnswer = document.getElementById('copyAnswer');
 
     const demoFallback = 'https://cdn.coverr.co/videos/coverr-tech-meeting-1607/1080p.mp4';
     let cameraStream = null;
 
     const badges = {
-      Alex: 'Ведущий',
-      Maria: 'Модератор',
-      DevGuru: 'Подписчик',
-      Guest: 'Гость'
+      'Вы': 'Ведущий',
+      'Друг': 'Участник'
     };
 
     const colors = {
-      Alex: 'from-indigo-500 to-fuchsia-500',
-      Maria: 'from-emerald-500 to-cyan-500',
-      DevGuru: 'from-amber-500 to-orange-500',
-      Guest: 'from-slate-500 to-slate-700'
+      'Вы': 'from-indigo-500 to-fuchsia-500',
+      'Друг': 'from-emerald-500 to-cyan-500'
     };
 
     const sampleMessages = [
-      { user: 'Alex', text: 'Привет всем! Начинаем стрим 🚀' },
-      { user: 'Maria', text: 'Напоминаю: задавайте вопросы в чате!' },
-      { user: 'DevGuru', text: 'Кто пробовал новый фреймворк? 😎' },
-      { user: 'Guest', text: 'Всем привет, рад быть здесь!' }
+      { user: 'Вы', text: 'Привет! Готов начать созвон 🚀' },
+      { user: 'Друг', text: 'Привет! Я тут 👋' }
     ];
 
     function addMessage(user, text) {
@@ -285,7 +283,7 @@
 
     function stopCameraTracks() {
       if (cameraStream) {
-        cameraStream.getTracks().forEach(t => t.stop());
+        cameraStream.getTracks().forEach((t) => t.stop());
         cameraStream = null;
       }
     }
@@ -298,7 +296,10 @@
       stopCameraTracks();
 
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: true
+        });
         cameraStream = stream;
         streamEl.srcObject = stream;
         streamEl.muted = true;
@@ -334,11 +335,10 @@
     }, 2000);
 
     // Seed messages
-    sampleMessages.forEach(m => addMessage(m.user, m.text));
+    sampleMessages.forEach((m) => addMessage(m.user, m.text));
 
     // --- WebRTC Call Logic ---
     let pc = null;
-    let gatheredCandidates = [];
     const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
     function setCallStatus(text, tone = 'neutral') {
@@ -354,10 +354,14 @@
 
     function resetPeer() {
       if (pc) {
-        try { pc.ontrack = null; pc.onicecandidate = null; pc.onconnectionstatechange = null; pc.close(); } catch (e) {}
+        try {
+          pc.ontrack = null;
+          pc.onicecandidate = null;
+          pc.onconnectionstatechange = null;
+          pc.close();
+        } catch (e) {}
       }
       pc = null;
-      gatheredCandidates = [];
       remoteVideo.srcObject = null;
       setCallStatus('Ожидает действий');
     }
@@ -378,7 +382,7 @@
     }
 
     function waitForIceComplete(connection) {
-      return new Promise(resolve => {
+      return new Promise((resolve) => {
         if (!connection) return resolve();
         if (connection.iceGatheringState === 'complete') return resolve();
         const checkState = () => {
@@ -392,49 +396,59 @@
       });
     }
 
-    function uint8ToBase64(uint8) {
+    // Создаем короткий код приглашения (до 200 символов)
+    function buildShortCode(desc) {
+      // Минимальный SDP - только основные параметры
+      const sdp = desc.sdp;
+      const lines = sdp.split('\n');
+      const essential = [];
+      
+      for (const line of lines) {
+        if (line.startsWith('v=') || line.startsWith('o=') || line.startsWith('s=') || 
+            line.startsWith('t=') || line.startsWith('a=group:BUNDLE') ||
+            line.startsWith('m=') || line.startsWith('a=mid:') ||
+            line.startsWith('a=setup:') || line.startsWith('a=ice-ufrag:') ||
+            line.startsWith('a=ice-pwd:') || line.startsWith('a=fingerprint:') ||
+            line.startsWith('a=candidate:') || line.startsWith('a=sendrecv') ||
+            line.startsWith('a=rtcp-mux')) {
+          essential.push(line);
+        }
+      }
+      
+      const compactSdp = essential.join('\n');
+      const data = {
+        t: desc.type === 'offer' ? 'o' : 'a',
+        s: compactSdp
+      };
+      
+      // Сжимаем и кодируем
+      const json = JSON.stringify(data);
+      const compressed = pako.deflate(json, { level: 9 });
+      
+      // Конвертируем в base64
       let binary = '';
-      for (let i = 0; i < uint8.length; i++) {
-        binary += String.fromCharCode(uint8[i]);
+      const len = compressed.byteLength;
+      for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(compressed[i]);
       }
       return btoa(binary);
     }
 
-    function base64ToUint8(str) {
-      const bin = atob(str);
-      const arr = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-      return arr;
-    }
-
-    function buildPackage(desc) {
-      const payload = JSON.stringify({ sdp: desc, candidates: gatheredCandidates });
-      if (window.pako) {
-        const compressed = pako.deflate(payload);
-        return uint8ToBase64(compressed);
-      }
-      return btoa(payload);
-    }
-
-    function parsePackage(str) {
+    function parseShortCode(str) {
       try {
-        const trimmed = str.trim();
-        let jsonText = '';
-        if (window.pako) {
-          try {
-            jsonText = pako.inflate(base64ToUint8(trimmed), { to: 'string' });
-          } catch (e) {
-            jsonText = atob(trimmed);
-          }
-        } else {
-          jsonText = atob(trimmed);
+        // Декодируем из base64
+        const binary = atob(str.trim());
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
         }
-        const parsed = JSON.parse(jsonText);
-        parsed.sdp = new RTCSessionDescription(parsed.sdp);
-        parsed.candidates = (parsed.candidates || []).map(c => new RTCIceCandidate(c));
-        return parsed;
+        // Распаковываем gzip
+        const decompressed = pako.inflate(bytes, { to: 'string' });
+        const data = JSON.parse(decompressed);
+        const type = data.t === 'o' ? 'offer' : 'answer';
+        return new RTCSessionDescription({ type, sdp: data.s });
       } catch (err) {
-        alert('Неверные данные приглашения/ответа');
+        alert('Неверный код приглашения');
         return null;
       }
     }
@@ -442,10 +456,7 @@
     function createPeerConnection() {
       resetPeer();
       pc = new RTCPeerConnection(rtcConfig);
-      gatheredCandidates = [];
-      pc.onicecandidate = (event) => {
-        if (event.candidate) gatheredCandidates.push(event.candidate.toJSON());
-      };
+      pc.onicecandidate = null; // все кандидаты будут зашиты в SDP после завершения сбора
       pc.ontrack = (event) => {
         remoteVideo.srcObject = event.streams[0];
         remoteVideo.play().catch(() => {});
@@ -462,64 +473,55 @@
 
     async function createInvite() {
       try {
-        setCallStatus('Создаем приглашение...', 'info');
+        setCallStatus('Создаем код...', 'info');
         const stream = await ensureCameraStream(true);
         if (!stream) return;
         const peer = createPeerConnection();
-        stream.getTracks().forEach(t => peer.addTrack(t, stream));
+        stream.getTracks().forEach((t) => peer.addTrack(t, stream));
         const offer = await peer.createOffer();
         await peer.setLocalDescription(offer);
         await waitForIceComplete(peer);
-        const pkg = buildPackage(peer.localDescription);
-        inviteOut.value = pkg;
-        setCallStatus('Скопируйте короткий код и отправьте другу', 'success');
+        const code = buildShortCode(peer.localDescription);
+        inviteOut.value = code;
+        setCallStatus('Код готов! Отправьте другу', 'success');
       } catch (err) {
         console.error(err);
-        setCallStatus('Не удалось создать приглашение', 'error');
+        setCallStatus('Не удалось создать код', 'error');
       }
     }
 
-    async function answerInvite() {
-      const inbound = inviteIn.value.trim();
-      if (!inbound) return alert('Вставьте приглашение от друга');
-      const parsed = parsePackage(inbound);
-      if (!parsed) return;
+    async function connectToFriend() {
+      const code = inviteIn.value.trim();
+      if (!code) {
+        setCallStatus('Введите код друга', 'error');
+        return;
+      }
+      
+      const remoteDesc = parseShortCode(code);
+      if (!remoteDesc) return;
+      
       try {
-        setCallStatus('Формируем ответ...', 'info');
+        setCallStatus('Подключаемся...', 'info');
         const stream = await ensureCameraStream(true);
         if (!stream) return;
         const peer = createPeerConnection();
-        stream.getTracks().forEach(t => peer.addTrack(t, stream));
-        await peer.setRemoteDescription(parsed.sdp);
-        for (const c of parsed.candidates) await peer.addIceCandidate(c).catch(()=>{});
-        const answer = await peer.createAnswer();
-        await peer.setLocalDescription(answer);
-        await waitForIceComplete(peer);
-        const pkg = buildPackage(peer.localDescription);
-        answerOut.value = pkg;
-        setCallStatus('Ответ готов — отправьте инициатору', 'success');
+        stream.getTracks().forEach((t) => peer.addTrack(t, stream));
+        
+        if (remoteDesc.type === 'offer') {
+          // Мы отвечаем на приглашение
+          await peer.setRemoteDescription(remoteDesc);
+          const answer = await peer.createAnswer();
+          await peer.setLocalDescription(answer);
+          await waitForIceComplete(peer);
+          setCallStatus('Подключено!', 'success');
+        } else {
+          // Мы инициатор, получили ответ
+          await peer.setRemoteDescription(remoteDesc);
+          setCallStatus('Подключено!', 'success');
+        }
       } catch (err) {
         console.error(err);
-        setCallStatus('Ошибка при ответе на приглашение', 'error');
-      }
-    }
-
-    async function acceptAnswer() {
-      const inbound = answerIn.value.trim();
-      if (!inbound) return alert('Вставьте ответ друга');
-      const parsed = parsePackage(inbound);
-      if (!parsed) return;
-      if (!pc) {
-        setCallStatus('Сначала создайте приглашение', 'error');
-        return;
-      }
-      try {
-        await pc.setRemoteDescription(parsed.sdp);
-        for (const c of parsed.candidates) await pc.addIceCandidate(c).catch(()=>{});
-        setCallStatus('Ответ принят, ждем соединения...', 'info');
-      } catch (err) {
-        console.error(err);
-        setCallStatus('Не удалось применить ответ', 'error');
+        setCallStatus('Ошибка подключения', 'error');
       }
     }
 
@@ -527,17 +529,15 @@
       if (!el.value) return;
       try {
         await navigator.clipboard.writeText(el.value);
-        setCallStatus('Скопировано в буфер обмена', 'success');
+        setCallStatus('Скопировано', 'success');
       } catch {
         setCallStatus('Не удалось скопировать', 'error');
       }
     }
 
     createOfferBtn.addEventListener('click', createInvite);
-    answerBtn.addEventListener('click', answerInvite);
-    acceptAnswerBtn.addEventListener('click', acceptAnswer);
+    connectBtn.addEventListener('click', connectToFriend);
     copyInvite.addEventListener('click', () => copyToClipboard(inviteOut));
-    copyAnswer.addEventListener('click', () => copyToClipboard(answerOut));
 
     // Автостарт камеры (сразу попросим разрешение)
     startCamera();
