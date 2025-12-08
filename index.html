@@ -3,161 +3,287 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Прямой звонок & Чат</title>
+  <title>Видеозвонок — Стрим Платформа</title>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
   <style>
     :root { color-scheme: dark; }
-    .glass { backdrop-filter: blur(12px); background: rgba(15,23,42,0.6); }
-    .scrollbar::-webkit-scrollbar { width: 8px; }
+    body { overflow-x: hidden; }
+    .glass { backdrop-filter: blur(14px); background: rgba(12, 17, 35, 0.7); }
+    .scrollbar::-webkit-scrollbar { width: 6px; }
     .scrollbar::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.6); border-radius: 12px; }
+    .pip-video { position: absolute; bottom: 1rem; right: 1rem; width: 120px; height: 90px; border-radius: 14px; border: 2px solid rgba(255,255,255,0.25); object-fit: cover; z-index: 10; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 10px 30px rgba(0,0,0,0.45); }
+    .pip-video:hover { transform: scale(1.05); border-color: rgba(99, 102, 241, 0.6); }
+    @media (min-width: 768px) { .pip-video { width: 180px; height: 135px; } }
+    .main-video { width: 100%; height: 100%; object-fit: cover; background: #0f172a; }
+    .video-container { position: relative; width: 100%; aspect-ratio: 16/9; border-radius: 1.25rem; overflow: hidden; }
+    .fullscreen-btn { position: absolute; top: 0.6rem; right: 0.6rem; z-index: 30; background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; padding: 0.55rem; cursor: pointer; transition: all 0.2s; }
+    .fullscreen-btn:hover { background: rgba(99, 102, 241, 0.55); }
+    .waiting-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(8, 11, 26, 0.92); z-index: 5; gap: 0.5rem; text-align: center; }
+    .pulse { position: relative; }
+    .pulse::after { content: ""; position: absolute; inset: -8px; border-radius: 999px; border: 2px solid rgba(94,234,212,0.35); animation: pulse 1.8s infinite; }
+    @keyframes pulse { 0% { transform: scale(0.9); opacity: 0.9; } 100% { transform: scale(1.3); opacity: 0; } }
+    .meter { width: 6px; background: linear-gradient(180deg, #22c55e, #ef4444); border-radius: 6px; height: 48px; overflow: hidden; position: relative; }
+    .meter .level { position: absolute; bottom: 0; width: 100%; background: linear-gradient(180deg, #22c55e, #eab308, #ef4444); border-radius: 6px; }
+    .no-media { background: linear-gradient(135deg, #1e293b, #334155); border: 2 dashed #475569; }
+    .no-media-icon { font-size: 3rem; opacity: 0.3; }
+    .msg-actions button { opacity: 0; transition: opacity 0.2s; }
+    .chat-card:hover .msg-actions button { opacity: 1; }
+    .tooltip { position: fixed; padding: 8px 10px; border-radius: 10px; background: rgba(15,23,42,0.9); border: 1px solid rgba(255,255,255,0.12); color: #e2e8f0; font-size: 12px; z-index: 100; pointer-events: none; opacity: 0; transform: translateY(4px); transition: opacity 0.2s ease, transform 0.2s ease; }
+    .tooltip.show { opacity: 1; transform: translateY(0); }
+    .fade-out { animation: fadeOut 0.4s forwards; }
+    @keyframes fadeOut { to { opacity: 0; transform: translateY(-4px); } }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 60; }
+    .modal-backdrop.show { display: flex; }
+    .viewer-content img, .viewer-content video { max-height: 80vh; max-width: 90vw; border-radius: 16px; }
+    .notification { position: fixed; top: 1rem; left: 1rem; z-index: 100; max-width: 320px; padding: 0.75rem 1rem; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: #e2e8f0; font-size: 13px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); opacity: 0; transform: translateX(-20px); transition: all 0.3s ease; pointer-events: none; }
+    .notification.show { opacity: 1; transform: translateX(0); }
+    .notification.hide { opacity: 0; transform: translateX(-20px); }
   </style>
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-100">
   <div class="fixed inset-0 -z-10 overflow-hidden">
-    <div class="absolute inset-0 bg-gradient-to-br from-indigo-700/30 via-slate-900 to-fuchsia-800/20"></div>
-    <div class="absolute w-[900px] h-[900px] -top-40 -left-40 rounded-full bg-indigo-500/20 blur-[150px]"></div>
-    <div class="absolute w-[700px] h-[700px] -bottom-32 -right-32 rounded-full bg-fuchsia-500/20 blur-[150px]"></div>
+    <div class="absolute inset-0 bg-gradient-to-br from-indigo-700/30 via-slate-900 to-fuchsia-800/25"></div>
+    <div class="absolute w-[900px] h-[900px] -top-48 -left-48 rounded-full bg-indigo-500/20 blur-[160px]"></div>
+    <div class="absolute w-[700px] h-[700px] -bottom-40 -right-40 rounded-full bg-fuchsia-500/20 blur-[160px]"></div>
   </div>
 
-  <header class="flex items-center justify-between px-6 py-4 border-b border-white/10 glass sticky top-0 z-20">
+  <header class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-white/10 glass sticky top-0 z-20">
     <div class="flex items-center gap-3">
-      <div class="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center font-bold text-xl">
-        ▶
-      </div>
+      <div class="h-10 w-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center font-bold text-xl shadow-lg shadow-indigo-900/50" data-tip="Стрим Платформа">📹</div>
       <div>
-        <p class="text-sm uppercase tracking-[0.25em] text-slate-300">Live call</p>
-        <h1 class="text-2xl font-semibold">P2P стрим и чат</h1>
+        <h1 class="text-lg md:text-xl font-semibold">Стрим Платформа</h1>
+        <p class="text-xs text-slate-400">P2P | Без серверного ретранслятора</p>
       </div>
     </div>
-    <div class="flex items-center gap-3 text-sm">
-      <div class="px-3 py-1 rounded-full bg-white/10 border border-white/10">
-        Зрителей: <span id="viewerCount">3 482</span>
-      </div>
-      <div class="px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-100">LIVE</div>
+    <div class="flex items-center gap-2 text-sm flex-wrap">
+      <span id="callStatus" class="px-3 py-1 rounded-full bg-white/10 border border-white/10 text-slate-200 text-xs">Ожидание</span>
+      <span id="connectionQuality" class="px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-100 text-xs">Скорость: —</span>
+      <span id="callTimer" class="px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-100 text-xs">00:00</span>
     </div>
   </header>
 
-  <main class="grid grid-cols-1 xl:grid-cols-4 gap-6 p-6 max-w-6xl mx-auto">
-    <section class="xl:col-span-3 glass border border-white/10 rounded-2xl shadow-2xl shadow-indigo-900/30 p-4 space-y-4">
-      <div class="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Созвон с другом</p>
-          <h2 class="text-xl font-semibold">Видеозвонок + демонстрация экрана</h2>
+  <main class="grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 max-w-6xl mx-auto">
+    <section class="lg:col-span-2 space-y-4">
+      <div class="video-container glass border border-white/10 shadow-2xl shadow-indigo-900/30">
+        <video id="remoteVideo" class="main-video" autoplay playsinline></video>
+        <div id="localVideoContainer" class="pip-video no-media flex items-center justify-center">
+          <div class="text-center">
+            <div class="no-media-icon">📹</div>
+            <p class="text-xs text-slate-400 mt-2">Нет камеры</p>
+          </div>
         </div>
-        <div class="flex items-center gap-2 text-xs">
-          <span id="callStatus" class="px-3 py-1 rounded-full bg-white/10 border border-white/10 text-slate-200">Ожидает действий</span>
-          <button id="resetCall" class="px-3 py-1 rounded-lg bg-white/10 border border-white/10 hover:bg-white/15">Сбросить</button>
+        <video id="localVideo" class="pip-video hidden" autoplay muted playsinline></video>
+
+        <div id="waitingOverlay" class="waiting-overlay">
+          <div class="text-5xl mb-2">📞</div>
+          <p class="text-slate-200 text-lg">Ожидание подключения друга...</p>
+          <p class="text-slate-400 text-sm">Поделитесь кодом, чтобы начать</p>
+        </div>
+
+        <button id="fullscreenMain" class="fullscreen-btn text-white text-sm" data-tip="На весь экран">⛶</button>
+
+        <div class="absolute bottom-3 left-3 flex flex-wrap gap-2 z-20">
+          <button id="toggleMic" class="px-3 py-1.5 rounded-lg bg-black/50 border border-white/20 text-sm hover:bg-black/70 transition" data-tip="Микрофон">🎤 Микрофон</button>
+          <button id="toggleCam" class="px-3 py-1.5 rounded-lg bg-black/50 border border-white/20 text-sm hover:bg-black/70 transition" data-tip="Камера">📷 Камера</button>
+          <button id="shareScreen" class="px-3 py-1.5 rounded-lg bg-black/50 border border-white/20 text-sm hover:bg-black/70 transition" data-tip="Демонстрация экрана">🖥️ Экран</button>
+          <button id="snapBtn" class="px-3 py-1.5 rounded-lg bg-black/50 border border-white/20 text-sm hover:bg-black/70 transition" data-tip="Скриншот">📸 Скрин</button>
+          <button id="recordBtn" class="px-3 py-1.5 rounded-lg bg-black/50 border border-white/20 text-sm hover:bg-black/70 transition" data-tip="Запись">⏺️ Запись</button>
+        </div>
+
+        <div class="absolute top-3 left-3 flex items-center gap-3 z-20">
+          <div class="flex items-center gap-2 px-2 py-1 rounded-lg bg-black/40 border border-white/10">
+            <div class="meter"><div id="level" class="level" style="height: 5%"></div></div>
+            <span class="text-xs text-slate-200">Микш.уровень</span>
+          </div>
+          <div id="liveBadge" class="pulse px-3 py-1 rounded-full bg-rose-600/70 text-xs font-semibold border border-rose-200/30 shadow-lg shadow-rose-900/50">LIVE</div>
         </div>
       </div>
 
-      <div id="callStage" class="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900 aspect-video flex items-center justify-center">
-        <video id="remoteVideo" class="w-full h-full object-cover" autoplay playsinline></video>
-        <div class="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent pointer-events-none"></div>
-        <div class="absolute top-3 left-3 px-3 py-1 rounded-full bg-black/50 border border-white/10 text-xs flex items-center gap-2">
-          <span class="h-2 w-2 rounded-full bg-rose-400 animate-pulse" id="remoteDot"></span>
-          <span id="remoteLabel">Друг (нет сигнала)</span>
-        </div>
-
-        <div id="localPip" class="absolute bottom-4 right-4 w-32 sm:w-48 aspect-video rounded-xl overflow-hidden border border-white/20 bg-black/50 shadow-2xl shadow-black/40">
-          <video id="localVideo" class="w-full h-full object-cover" autoplay muted playsinline></video>
-          <div class="absolute top-2 left-2 px-2 py-[3px] rounded bg-black/60 border border-white/20 text-[11px]">Вы</div>
-        </div>
-      </div>
-
-      <div class="flex flex-wrap gap-2 text-sm">
-        <button id="startCam" class="px-3 py-2 rounded-lg bg-indigo-600 border border-indigo-500 hover:bg-indigo-500 transition shadow-lg shadow-indigo-900/40">📷 Включить камеру</button>
-        <button id="screenBtn" class="px-3 py-2 rounded-lg bg-white/10 border border-white/10 hover:bg-white/20 transition">🖥️ Показать экран</button>
-        <button id="swapBtn" class="px-3 py-2 rounded-lg bg-white/10 border border-white/10 hover:bg-white/20 transition">🔄 Поменять местами</button>
-        <button id="fullMainBtn" class="px-3 py-2 rounded-lg bg-white/10 border border-white/10 hover:bg-white/20 transition">⛶ Друг на весь экран</button>
-        <button id="fullLocalBtn" class="px-3 py-2 rounded-lg bg-white/10 border border-white/10 hover:bg-white/20 transition">⛶ Я на весь экран</button>
-      </div>
-
-      <div class="p-4 rounded-xl border border-white/10 bg-white/5 space-y-4">
+      <div class="glass border border-white/10 rounded-xl p-4 space-y-3">
         <div class="flex items-center justify-between gap-2 flex-wrap">
-          <h3 class="font-semibold">Обмен кодом (2 шага)</h3>
-          <div class="flex gap-2">
-            <button id="createOfferBtn" class="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm">Создать код</button>
-            <button id="connectBtn" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm">Подключиться</button>
+          <h3 class="font-semibold text-sm">Подключение</h3>
+          <div class="flex gap-2 flex-wrap">
+            <button id="createOfferBtn" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm transition" data-tip="Создать код приглашения">Создать код</button>
+            <button id="connectBtn" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm transition" data-tip="Подключиться по коду">Подключиться</button>
+            <button id="resetCall" class="px-3 py-1.5 rounded-lg bg-rose-600/80 hover:bg-rose-500 text-sm transition" data-tip="Завершить звонок">Завершить</button>
           </div>
         </div>
-        <div class="grid md:grid-cols-2 gap-4">
-          <div class="space-y-2">
-            <label class="text-xs text-slate-400">Ваш код (отправьте другу)</label>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="space-y-1">
+            <label class="text-xs text-slate-400">Ваш код</label>
             <div class="flex gap-2">
-              <textarea id="inviteOut" rows="2" class="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs font-mono" placeholder="Нажмите Создать код"></textarea>
-              <button id="copyInvite" class="px-3 py-2 rounded-lg bg-white/10 border border-white/10 text-xs whitespace-nowrap">Копия</button>
+              <textarea id="inviteOut" rows="2" class="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs font-mono resize-none" placeholder="Нажмите 'Создать код'"></textarea>
+              <button id="copyInvite" class="px-2 py-1 rounded-lg bg-white/10 border border-white/10 text-xs hover:bg-white/20" data-tip="Скопировать код">📋</button>
             </div>
-            <p class="text-[11px] text-slate-400">Код сжат, старайтесь уложиться до ~200 символов. Если длиннее — все равно отправляйте, так надежнее.</p>
           </div>
-          <div class="space-y-2">
+          <div class="space-y-1">
             <label class="text-xs text-slate-400">Код друга</label>
-            <textarea id="inviteIn" rows="2" class="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs font-mono" placeholder="Вставьте код друга и нажмите Подключиться"></textarea>
+            <textarea id="inviteIn" rows="2" class="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs font-mono resize-none" placeholder="Вставьте код друга"></textarea>
           </div>
+        </div>
+
+        <div class="flex gap-2 flex-wrap">
+          <button id="enableMediaBtn" class="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm transition" data-tip="Подключить камеру и микрофон позже">🔌 Включить медиа</button>
+        </div>
+
+        <div class="mt-3 p-3 rounded-lg bg-white/5 border border-white/10">
+          <h4 class="text-xs font-semibold text-indigo-300 mb-2">📖 Как это работает:</h4>
+          <ol class="text-xs text-slate-400 space-y-1 pl-4 list-decimal">
+            <li><strong>Создайте код:</strong> Нажмите "Создать код" и скопируйте код из поля "Ваш код"</li>
+            <li><strong>Отправьте другу:</strong> Передайте код другу любым способом (мессенджер, email и т.д.)</li>
+            <li><strong>Друг подключается:</strong> Друг вставляет ваш код в поле "Код друга" и нажимает "Подключиться"</li>
+            <li><strong>Обмен кодами:</strong> Друг отправляет вам свой код ответа, вы вставляете его в "Код друга" и нажимаете "Подключиться"</li>
+            <li><strong>Готово!</strong> Установлено P2P соединение напрямую между вами, без серверов</li>
+          </ol>
         </div>
       </div>
     </section>
 
-    <aside class="glass border border-white/10 rounded-2xl shadow-2xl shadow-indigo-900/30 flex flex-col h-[72vh] xl:h-[82vh]">
+    <aside class="glass border border-white/10 rounded-xl shadow-2xl shadow-indigo-900/30 flex flex-col h-[55vh] lg:h-[78vh]">
       <div class="flex items-center justify-between px-4 py-3 border-b border-white/5">
         <div>
-          <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Чат</p>
-          <h2 class="text-xl font-semibold">Только участники</h2>
+          <h2 class="font-semibold">Чат</h2>
+          <p class="text-xs text-slate-400">Сообщения через DataChannel</p>
         </div>
-        <button id="clearBtn" class="text-xs px-2 py-1 rounded bg-white/10 border border-white/10 hover:bg-white/15">Очистить</button>
+        <div class="flex gap-2">
+          <button id="saveLog" class="text-xs px-2 py-1 rounded bg-white/10 border border-white/10 hover:bg-white/15" data-tip="Сохранить историю">Сохранить</button>
+          <button id="clearBtn" class="text-xs px-2 py-1 rounded bg-white/10 border border-white/10 hover:bg-white/15" data-tip="Очистить чат">Очистить</button>
+        </div>
       </div>
 
-      <div id="chat" class="flex-1 overflow-y-auto p-4 space-y-3 scrollbar"></div>
+      <div id="chat" class="flex-1 overflow-y-auto p-3 space-y-2 scrollbar"></div>
 
-      <div class="p-4 border-t border-white/5 space-y-2">
-        <div class="flex gap-2">
-          <input id="messageInput" type="text" placeholder="Напишите сообщение..." class="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-indigo-400/60" />
-          <button id="sendBtn" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 transition shadow-lg shadow-indigo-900/40">Отправить</button>
+      <div class="p-3 border-t border-white/5 space-y-2">
+        <div id="replyBadge" class="hidden items-center justify-between px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs">
+          <span id="replyText" class="text-slate-200"></span>
+          <button id="cancelReply" class="text-rose-300" data-tip="Отменить ответ">✕</button>
         </div>
-        <label class="flex items-center gap-2 text-sm text-slate-400">
-          <input type="checkbox" id="autoScroll" checked class="accent-indigo-500" /> Автопрокрутка
-        </label>
+        <div class="flex gap-2 items-center">
+          <button id="attachBtn" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 border border-white/10 transition text-sm" data-tip="Прикрепить файл">📎</button>
+          <input id="fileInput" type="file" class="hidden" accept="image/*,video/*,audio/*,.pdf,.zip,.txt,.doc,.docx" />
+          <input id="messageInput" type="text" placeholder="Сообщение..." class="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-indigo-400/60 text-sm" />
+          <button id="emojiBtn" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 border border-white/10 transition text-sm" data-tip="Эмодзи">😊</button>
+          <button id="sendBtn" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 transition text-sm" data-tip="Отправить">➤</button>
+        </div>
+        <p class="text-[11px] text-slate-500">Поддержка: ответы, реакции, файлы, картинки с рисованием перед отправкой.</p>
       </div>
     </aside>
   </main>
 
+  <!-- Рисовалка для картинок -->
+  <div id="drawModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+    <div class="bg-slate-900 rounded-2xl border border-white/10 shadow-2xl w-full max-w-3xl overflow-hidden">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-white/10">
+        <div>
+          <h3 class="font-semibold text-sm">Редактирование изображения</h3>
+          <p class="text-xs text-slate-400">Рисуйте поверх картинки и отправьте в чат</p>
+        </div>
+        <div class="flex gap-2 text-xs">
+          <label class="flex items-center gap-1 cursor-pointer"><input type="color" id="brushColor" value="#f472b6" class="h-6 w-6 p-0 border-0 bg-transparent" /><span>Цвет</span></label>
+          <input id="brushSize" type="range" min="2" max="18" value="6" class="w-24 accent-indigo-400" />
+          <button id="clearCanvas" class="px-2 py-1 rounded bg-white/10 border border-white/10 hover:bg-white/20">Очистить</button>
+          <button id="closeDraw" class="px-2 py-1 rounded bg-white/10 border border-white/10 hover:bg-white/20">✕</button>
+        </div>
+      </div>
+      <div class="p-4 bg-slate-950">
+        <canvas id="drawCanvas" class="w-full rounded-lg border border-white/10 bg-black"></canvas>
+      </div>
+      <div class="flex justify-between items-center px-4 py-3 border-t border-white/10">
+        <span class="text-xs text-slate-400">Поддерживаются PNG/JPG</span>
+        <div class="flex gap-2">
+          <button id="sendDrawing" class="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm">Отправить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Просмотр изображений/видео -->
+  <div id="viewer" class="modal-backdrop">
+    <div class="viewer-content relative bg-slate-900/80 border border-white/10 rounded-2xl p-4 shadow-2xl">
+      <button id="viewerClose" class="absolute -top-3 -right-3 h-8 w-8 rounded-full bg-black/70 text-white border border-white/20" data-tip="Закрыть">✕</button>
+      <div id="viewerBody" class="flex justify-center items-center"></div>
+    </div>
+  </div>
+
+  <div id="tooltip" class="tooltip"></div>
+
   <script>
-    // DOM
+    // Elements
     const chat = document.getElementById('chat');
     const messageInput = document.getElementById('messageInput');
     const sendBtn = document.getElementById('sendBtn');
     const clearBtn = document.getElementById('clearBtn');
-    const autoScroll = document.getElementById('autoScroll');
-    const viewerCount = document.getElementById('viewerCount');
+    const saveLog = document.getElementById('saveLog');
+    const callStatus = document.getElementById('callStatus');
+    const connectionQuality = document.getElementById('connectionQuality');
+    const callTimer = document.getElementById('callTimer');
 
     const localVideo = document.getElementById('localVideo');
+    const localVideoContainer = document.getElementById('localVideoContainer');
     const remoteVideo = document.getElementById('remoteVideo');
-    const remoteLabel = document.getElementById('remoteLabel');
-    const remoteDot = document.getElementById('remoteDot');
-    const callStage = document.getElementById('callStage');
-    const localPip = document.getElementById('localPip');
+    const waitingOverlay = document.getElementById('waitingOverlay');
 
-    const startCam = document.getElementById('startCam');
-    const screenBtn = document.getElementById('screenBtn');
-    const swapBtn = document.getElementById('swapBtn');
-    const fullMainBtn = document.getElementById('fullMainBtn');
-    const fullLocalBtn = document.getElementById('fullLocalBtn');
-
-    const callStatus = document.getElementById('callStatus');
-    const resetCall = document.getElementById('resetCall');
     const createOfferBtn = document.getElementById('createOfferBtn');
     const connectBtn = document.getElementById('connectBtn');
+    const resetCall = document.getElementById('resetCall');
     const inviteOut = document.getElementById('inviteOut');
     const inviteIn = document.getElementById('inviteIn');
     const copyInvite = document.getElementById('copyInvite');
 
+    const toggleMic = document.getElementById('toggleMic');
+    const toggleCam = document.getElementById('toggleCam');
+    const shareScreen = document.getElementById('shareScreen');
+    const fullscreenMain = document.getElementById('fullscreenMain');
+    const snapBtn = document.getElementById('snapBtn');
+    const recordBtn = document.getElementById('recordBtn');
+    const liveBadge = document.getElementById('liveBadge');
+    const levelEl = document.getElementById('level');
+    const enableMediaBtn = document.getElementById('enableMediaBtn');
+
+    const attachBtn = document.getElementById('attachBtn');
+    const fileInput = document.getElementById('fileInput');
+    const emojiBtn = document.getElementById('emojiBtn');
+    const replyBadge = document.getElementById('replyBadge');
+    const replyText = document.getElementById('replyText');
+    const cancelReply = document.getElementById('cancelReply');
+
+    const drawModal = document.getElementById('drawModal');
+    const drawCanvas = document.getElementById('drawCanvas');
+    const brushColor = document.getElementById('brushColor');
+    const brushSize = document.getElementById('brushSize');
+    const clearCanvasBtn = document.getElementById('clearCanvas');
+    const closeDraw = document.getElementById('closeDraw');
+    const sendDrawing = document.getElementById('sendDrawing');
+
+    const viewer = document.getElementById('viewer');
+    const viewerClose = document.getElementById('viewerClose');
+    const viewerBody = document.getElementById('viewerBody');
+
+    const tooltip = document.getElementById('tooltip');
+
     // State
-    const badges = { 'Вы': 'Вы', 'Друг': 'Друг' };
-    const colors = { 'Вы': 'from-indigo-500 to-fuchsia-500', 'Друг': 'from-emerald-500 to-cyan-500' };
-    let cameraStream = null;
-    let screenStream = null;
-    let videoSender = null;
     let pc = null;
+    let localStream = null;
+    let screenStream = null;
+    let micEnabled = true;
+    let camEnabled = true;
+    let isConnected = false;
+    let callStartTime = null;
+    let timerInterval = null;
+    let statsInterval = null;
+    let recorder = null;
+    let recordedChunks = [];
+    let hasMediaDevices = false;
+    let pendingSignalCode = '';
+
+    let fallbackAudioTrack = null;
+    let fallbackVideoTrack = null;
+
+    let dataChannel = null;
+    let replyTarget = null;
+    const messageMap = new Map();
 
     const rtcConfig = {
       iceServers: [
@@ -166,60 +292,51 @@
       ]
     };
 
-    // Chat helpers (только Вы/Друг)
-    function addMessage(user, text) {
-      const wrap = document.createElement('div');
-      wrap.className = 'p-3 rounded-xl bg-white/5 border border-white/5 shadow-sm shadow-black/20';
-
-      const head = document.createElement('div');
-      head.className = 'flex items-center gap-2 mb-1';
-
-      const avatar = document.createElement('div');
-      avatar.className = `h-8 w-8 rounded-full bg-gradient-to-br ${colors[user] || 'from-slate-500 to-slate-700'} flex items-center justify-center text-xs font-semibold uppercase`;
-      avatar.textContent = user.slice(0, 2);
-
-      const name = document.createElement('div');
-      name.className = 'flex items-center gap-2';
-      const userEl = document.createElement('span');
-      userEl.className = 'font-semibold';
-      userEl.textContent = user;
-      const badge = document.createElement('span');
-      badge.className = 'text-[11px] px-2 py-[2px] rounded-full bg-white/10 border border-white/10 text-slate-200';
-      badge.textContent = badges[user] || 'Участник';
-      name.append(userEl, badge);
-
-      head.append(avatar, name);
-
-      const body = document.createElement('p');
-      body.className = 'text-sm text-slate-200 leading-relaxed';
-      body.textContent = text;
-
-      wrap.append(head, body);
-      chat.appendChild(wrap);
-      if (autoScroll.checked) chat.scrollTo({ top: chat.scrollHeight, behavior: 'smooth' });
+    function createSilentAudioTrack() {
+      const ctx = new AudioContext();
+      const oscillator = ctx.createOscillator();
+      const dst = ctx.createMediaStreamDestination();
+      oscillator.connect(dst);
+      oscillator.start();
+      const track = dst.stream.getAudioTracks()[0];
+      track.enabled = false;
+      return track;
+    }
+    function createBlackVideoTrack() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 640; canvas.height = 360;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      const stream = canvas.captureStream(5);
+      const track = stream.getVideoTracks()[0];
+      track.enabled = false;
+      return track;
+    }
+    function ensureFallbackTracks() {
+      if (!fallbackAudioTrack) fallbackAudioTrack = createSilentAudioTrack();
+      if (!fallbackVideoTrack) fallbackVideoTrack = createBlackVideoTrack();
+    }
+    function ensureSenders(peer) {
+      ensureFallbackTracks();
+      const existingSenders = peer.getSenders();
+      let audioSender = existingSenders.find(s => s.track && s.track.kind === 'audio');
+      let videoSender = existingSenders.find(s => s.track && s.track.kind === 'video');
+      // Association with a stream is needed for some standard implementations
+      if (!audioSender) audioSender = peer.addTrack(fallbackAudioTrack, new MediaStream([fallbackAudioTrack]));
+      if (!videoSender) videoSender = peer.addTrack(fallbackVideoTrack, new MediaStream([fallbackVideoTrack]));
+      return { audioSender, videoSender };
+    }
+    function bindLocalTracks(stream) {
+      if (!pc || !stream) return;
+      const { audioSender, videoSender } = ensureSenders(pc);
+      const audioTrack = stream.getAudioTracks()[0];
+      const videoTrack = stream.getVideoTracks()[0];
+      if (audioTrack) { audioSender.replaceTrack(audioTrack); audioTrack.enabled = micEnabled; }
+      if (videoTrack) { videoSender.replaceTrack(videoTrack); videoTrack.enabled = camEnabled; }
     }
 
-    function sendMessage(user = 'Вы') {
-      const text = messageInput.value.trim();
-      if (!text) return;
-      addMessage(user, text);
-      messageInput.value = '';
-      messageInput.focus();
-    }
-
-    sendBtn.addEventListener('click', () => sendMessage());
-    messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
-    clearBtn.addEventListener('click', () => { chat.innerHTML = ''; });
-
-    // Viewer counter pulse
-    setInterval(() => {
-      const base = 3482;
-      const jitter = Math.floor(Math.random() * 40) - 20;
-      viewerCount.textContent = (base + jitter).toLocaleString('ru-RU');
-    }, 2000);
-
-    // Camera & screen
-    function setCallStatus(text, tone = 'neutral') {
+    function setStatus(text, tone = 'neutral') {
       const tones = {
         neutral: 'bg-white/10 border-white/10 text-slate-200',
         info: 'bg-indigo-500/20 border-indigo-400/50 text-indigo-100',
@@ -230,254 +347,661 @@
       callStatus.className = `px-3 py-1 rounded-full text-xs ${tones[tone] || tones.neutral}`;
     }
 
-    function stopTracks(stream) {
-      if (!stream) return;
-      stream.getTracks().forEach(t => t.stop());
+    const makeId = () => 'm-' + Math.random().toString(36).slice(2,9) + Date.now().toString(36);
+
+    function showNotification(message) {
+      const notification = document.createElement('div');
+      notification.className = 'notification';
+      notification.textContent = message;
+      document.body.appendChild(notification);
+      requestAnimationFrame(() => {
+        notification.classList.add('show');
+      });
+      setTimeout(() => {
+        notification.classList.add('hide');
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
+      }, 6000);
+    }
+
+    function addMessage(user, text, type = 'text', extra = {}, opts = {}) {
+      const id = opts.id || makeId();
+      const wrap = document.createElement('div');
+      wrap.className = 'chat-card p-2 rounded-lg bg-white/5 border border-white/5 space-y-2 relative';
+      wrap.dataset.id = id;
+
+      const isMe = user === 'Вы';
+      const color = isMe ? 'from-indigo-500 to-fuchsia-500' : 'from-emerald-500 to-cyan-500';
+      const initial = user.slice(0,1);
+
+      const header = document.createElement('div');
+      header.className = 'flex items-center gap-2';
+      header.innerHTML = `<div class="h-6 w-6 rounded-full bg-gradient-to-br ${color} flex items-center justify-center text-[10px] font-semibold">${initial}</div><span class="font-medium text-sm">${user}</span>`;
+      wrap.appendChild(header);
+
+      if (opts.replyPreview) {
+        const reply = document.createElement('div');
+        reply.className = 'text-[11px] text-slate-400 bg-white/5 border border-white/10 rounded px-2 py-1 ml-8';
+        reply.textContent = 'Ответ на: ' + opts.replyPreview;
+        wrap.appendChild(reply);
+      }
+
+      const body = document.createElement('div');
+      body.className = 'pl-8 space-y-2';
+
+      if (type === 'text') {
+        const p = document.createElement('p');
+        p.className = 'text-sm text-slate-200 whitespace-pre-wrap';
+        p.textContent = text;
+        body.appendChild(p);
+      } else if (type === 'file') {
+        const box = document.createElement('div');
+        box.className = 'flex items-center gap-2 text-sm text-slate-200';
+        box.innerHTML = `📄 <span class="break-all">${extra.name || 'файл'}</span> <span class="text-slate-500 text-xs">${extra.size || ''}</span>`;
+        const dl = document.createElement('a');
+        dl.href = extra.url; dl.download = extra.name || 'file'; dl.target = '_blank';
+        dl.className = 'ml-auto px-2 py-1 text-xs rounded bg-white/10 border border-white/10 hover:bg-white/20';
+        dl.textContent = 'Скачать';
+        box.appendChild(dl);
+        body.appendChild(box);
+      } else if (type === 'image') {
+        const fig = document.createElement('div');
+        fig.className = 'relative group';
+        const img = document.createElement('img');
+        img.src = extra.url; img.alt = extra.name || 'image';
+        img.className = 'max-h-48 rounded-lg border border-white/10 cursor-zoom-in';
+        img.dataset.full = extra.url;
+        fig.appendChild(img);
+        const dl = document.createElement('a');
+        dl.href = extra.url; dl.download = extra.name || 'image'; dl.className = 'absolute top-2 right-2 px-2 py-1 text-xs rounded bg-black/60 border border-white/20 opacity-0 group-hover:opacity-100 transition';
+        dl.textContent = 'Скачать';
+        fig.appendChild(dl);
+        body.appendChild(fig);
+      } else if (type === 'video') {
+        const box = document.createElement('div');
+        box.className = 'relative group';
+        const vid = document.createElement('video');
+        vid.src = extra.url; vid.controls = true; vid.className = 'rounded-lg border border-white/10 max-h-64';
+        box.appendChild(vid);
+        const dl = document.createElement('a');
+        dl.href = extra.url; dl.download = extra.name || 'video'; dl.className = 'absolute top-2 right-2 px-2 py-1 text-xs rounded bg-black/60 border border-white/20 opacity-0 group-hover:opacity-100 transition';
+        dl.textContent = 'Скачать';
+        box.appendChild(dl);
+        body.appendChild(box);
+      }
+
+      wrap.appendChild(body);
+
+      const actions = document.createElement('div');
+      actions.className = 'msg-actions flex gap-2 text-xs text-slate-400 pl-8';
+      const replyBtn = document.createElement('button');
+      replyBtn.className = 'px-2 py-1 rounded bg-white/5 border border-white/10';
+      replyBtn.textContent = 'Ответить';
+      replyBtn.onclick = () => setReply({ id, preview: (text || extra.name || '').slice(0,60) });
+      const reactBtn = document.createElement('button');
+      reactBtn.className = 'px-2 py-1 rounded bg-white/5 border border-white/10';
+      reactBtn.textContent = '😊';
+      reactBtn.onclick = () => openReactionMenu(id, reactBtn);
+      actions.append(replyBtn, reactBtn);
+      wrap.appendChild(actions);
+
+      const reactRow = document.createElement('div');
+      reactRow.className = 'flex gap-1 pl-8 pt-1 flex-wrap text-lg';
+      wrap.appendChild(reactRow);
+
+      chat.appendChild(wrap);
+      chat.scrollTo({ top: chat.scrollHeight, behavior: 'smooth' });
+
+      messageMap.set(id, { el: wrap, reactions: reactRow });
+      return id;
+    }
+
+    function applyReaction(targetId, emoji) {
+      const entry = messageMap.get(targetId);
+      if (!entry) return;
+      const span = document.createElement('span');
+      span.textContent = emoji;
+      span.className = 'bg-white/10 rounded px-2 py-1';
+      entry.reactions.appendChild(span);
+    }
+
+    function openReactionMenu(id, anchor) {
+      const emojis = ['👍','❤️','😂','🔥','👏','😮'];
+      const menu = document.createElement('div');
+      menu.className = 'absolute z-30 bg-slate-900 border border-white/10 rounded-lg px-2 py-1 flex gap-1 shadow-xl';
+      emojis.forEach(e => {
+        const b = document.createElement('button');
+        b.textContent = e; b.className = 'hover:scale-110 transition';
+        b.onclick = (ev) => {
+          ev.stopPropagation();
+          applyReaction(id, e);
+          if (dataChannel?.readyState === 'open') dataChannel.send(JSON.stringify({ type: 'reaction', id, emoji: e }));
+          menu.remove();
+        };
+        menu.appendChild(b);
+      });
+      document.body.appendChild(menu);
+      const rect = anchor.getBoundingClientRect();
+      menu.style.top = (rect.bottom + 6) + 'px';
+      menu.style.left = (rect.left) + 'px';
+      const remover = () => menu.remove();
+      setTimeout(() => document.addEventListener('click', remover, { once: true }), 0);
+    }
+
+    function setReply(target) {
+      replyTarget = target;
+      replyBadge.classList.remove('hidden');
+      replyBadge.classList.add('flex');
+      replyText.textContent = target.preview;
+    }
+    cancelReply.addEventListener('click', () => { replyTarget = null; replyBadge.classList.add('hidden'); });
+
+    function sendMessage(text) {
+      const msg = text !== undefined ? text : messageInput.value.trim();
+      if (!msg) return;
+      const id = makeId();
+      addMessage('Вы', msg, 'text', {}, { id, replyPreview: replyTarget?.preview });
+      if (dataChannel && dataChannel.readyState === 'open') {
+        dataChannel.send(JSON.stringify({ type: 'chat', text: msg, id, replyPreview: replyTarget?.preview }));
+      }
+      messageInput.value = '';
+      replyTarget = null; replyBadge.classList.add('hidden');
+    }
+
+    sendBtn.addEventListener('click', () => sendMessage());
+    messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+    clearBtn.addEventListener('click', () => chat.innerHTML = '');
+    saveLog.addEventListener('click', () => {
+      const blob = new Blob([chat.innerText], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'chat-log.txt'; a.click(); URL.revokeObjectURL(url);
+    });
+
+    function openEmojiPicker(anchor) {
+      const emojis = '😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 😋 😛 😜 🤪 😝 🤑 🤗 🤭 🤫 🤔 🤐 🤨 😐 😑 😶 😏 😒 🙄 😬 🤥 😌 😔 😪 🤤 😴 😷 🤒 🤕 🤢 🤮 🤧 🥵 🥶 🥴 😵 🤯 🤠 🥳 😎 🤓 🧐 😕 😟 🙁 ☹️ 😮 😯 😲 😳 🥺 😦 😧 😨 😰 😥 😢 🤤😭 😱 😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 👿 💀 ☠️ 💩 🤡 👹 👺 👻 👽 🤖 🎃 😺 😸 😹 😻 😼 😽 🙀 😿 😾 👍 👎 👊 ✊ 🤛 🤜 🤞 ✌️ 🤟 🤘 🤙 👋 🤚 🖐️ ✋ 🖖 👌 🤌 ✍️ 🙏 💪 🤲 👐 🤝 🙌 👏 🤝 🤏 💅 🤳 💃 🕺 👯‍♀️ 👯‍♂️ 🧖‍♀️ 🧖‍♂️ 👶 👧 🧒 👦 👩 🧑 👨 👩‍🦰 👨‍🦰 👩‍🦱 👨‍🦱 👩‍🦲 👨‍🦲 👩‍🦳 👨‍🦳 👱‍♀️ 👱‍♂️ 🧔 👵 👴 👫 👭 👬 💑 💏 ❤️ 🧡 💛 💚 💙 💜 🤎 🖤 🤍 💔 ❣️ 💕 💞 💓 💗 💖 💘 💝 💟 💌'.split(/\s+/);
+      const menu = document.createElement('div');
+      menu.className = 'absolute z-30 max-w-xs bg-slate-900 border border-white/10 rounded-xl p-2 shadow-2xl grid grid-cols-8 gap-1 text-lg';
+
+      emojis.forEach(e => {
+        if (!e) return;
+        const b = document.createElement('button');
+        b.textContent = e;
+        b.className = 'hover:scale-110 transition leading-none';
+        b.onclick = (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const start = messageInput.selectionStart || messageInput.value.length;
+          const end = messageInput.selectionEnd || messageInput.value.length;
+          const value = messageInput.value;
+          messageInput.value = value.slice(0, start) + e + value.slice(end);
+          const caret = start + e.length;
+          messageInput.focus();
+          messageInput.setSelectionRange(caret, caret);
+          menu.remove();
+        };
+        menu.appendChild(b);
+      });
+
+      document.body.appendChild(menu);
+      const rect = anchor.getBoundingClientRect();
+      const mw = menu.offsetWidth;
+      menu.style.top = rect.top - menu.offsetHeight - 8 + 'px';
+      menu.style.left = Math.max(8, rect.left + rect.width / 2 - mw / 2) + 'px';
+
+      const close = (ev) => {
+        if (!menu.contains(ev.target)) {
+          menu.remove();
+          document.removeEventListener('click', close);
+        }
+      };
+      setTimeout(() => document.addEventListener('click', close), 0);
+    }
+
+    emojiBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openEmojiPicker(emojiBtn);
+    });
+
+    attachBtn.addEventListener('click', () => fileInput.click());
+
+    let drawingImage = null;
+    const ctxDraw = drawCanvas.getContext('2d');
+    let drawing = false;
+    let imgForDraw = new Image();
+
+    function resizeCanvasToImage(img) {
+      const maxW = 1024, maxH = 720;
+      let { width, height } = img;
+      const scale = Math.min(1, maxW / width, maxH / height);
+      width = Math.floor(width * scale); height = Math.floor(height * scale);
+      drawCanvas.width = width; drawCanvas.height = height;
+      ctxDraw.clearRect(0,0,width,height);
+      ctxDraw.drawImage(img, 0, 0, width, height);
+    }
+
+    function openDrawModal(file) {
+      const reader = new FileReader();
+      reader.onload = e => { imgForDraw.onload = () => { resizeCanvasToImage(imgForDraw); drawModal.classList.remove('hidden'); }; imgForDraw.src = e.target.result; };
+      reader.readAsDataURL(file);
+      drawingImage = file;
+    }
+
+    drawCanvas.addEventListener('mousedown', e => { drawing = true; ctxDraw.strokeStyle = brushColor.value; ctxDraw.lineWidth = brushSize.value; ctxDraw.lineCap = 'round'; ctxDraw.lineJoin = 'round'; ctxDraw.beginPath(); ctxDraw.moveTo(e.offsetX, e.offsetY); });
+    drawCanvas.addEventListener('mousemove', e => { if (!drawing) return; ctxDraw.lineTo(e.offsetX, e.offsetY); ctxDraw.stroke(); });
+    drawCanvas.addEventListener('mouseup', () => drawing = false);
+    drawCanvas.addEventListener('mouseleave', () => drawing = false);
+    clearCanvasBtn.addEventListener('click', () => { ctxDraw.clearRect(0,0,drawCanvas.width,drawCanvas.height); ctxDraw.drawImage(imgForDraw,0,0,drawCanvas.width,drawCanvas.height); });
+    closeDraw.addEventListener('click', () => { drawModal.classList.add('hidden'); });
+
+    sendDrawing.addEventListener('click', () => {
+      drawCanvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const id = makeId();
+        addMessage('Вы', '', 'image', { url, name: 'image.png' }, { id });
+        if (dataChannel?.readyState === 'open') {
+          sendFile(blob, 'image.png', 'image/png', id);
+        }
+        drawModal.classList.add('hidden');
+      }, 'image/png');
+    });
+
+    async function sendFile(blob, name, mimeType, msgId) {
+      try {
+        const buf = await blob.arrayBuffer();
+        dataChannel.send(JSON.stringify({ type: 'file-meta', name, kind: mimeType, size: blob.size, id: msgId }));
+        await new Promise(r => setTimeout(r, 50));
+        await sendFileData(buf);
+      } catch (err) {
+        console.error('Error sending file:', err);
+        showNotification('❌ Ошибка отправки файла');
+      }
+    }
+
+    async function sendFileData(buffer) {
+      return new Promise((resolve, reject) => {
+        const chunkSize = 16384;
+        let offset = 0;
+        
+        function sendChunk() {
+          if (offset >= buffer.byteLength) {
+            resolve();
+            return;
+          }
+          if (!dataChannel || dataChannel.readyState !== 'open') {
+            reject(new Error('DataChannel closed'));
+            return;
+          }
+          const chunk = buffer.slice(offset, Math.min(offset + chunkSize, buffer.byteLength));
+          offset += chunkSize;
+          try {
+            dataChannel.send(chunk);
+            if (dataChannel.bufferedAmount > 1048576) {
+              const checkBuffer = setInterval(() => {
+                if (!dataChannel || dataChannel.readyState !== 'open') {
+                  clearInterval(checkBuffer);
+                  reject(new Error('DataChannel closed during send'));
+                  return;
+                }
+                if (dataChannel.bufferedAmount < 524288) {
+                  clearInterval(checkBuffer);
+                  setTimeout(sendChunk, 10);
+                }
+              }, 50);
+            } else {
+              setTimeout(sendChunk, 5);
+            }
+          } catch (err) {
+            reject(err);
+          }
+        }
+        sendChunk();
+      });
+    }
+
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      const id = makeId();
+      if (file.type.startsWith('image/')) {
+        openDrawModal(file); 
+        fileInput.value = '';
+        return;
+      }
+      const type = file.type.startsWith('video/') ? 'video' : 'file';
+      addMessage('Вы', file.name, type, { url, name: file.name, size: `${(file.size/1024).toFixed(1)} KB` }, { id });
+      if (dataChannel?.readyState === 'open') {
+        await sendFile(file, file.name, file.type, id);
+      }
+      fileInput.value = '';
+    });
+
+    let incomingFileMeta = null;
+    let incomingBuffer = [];
+    
+    function handleBinary(data) {
+      if (!incomingFileMeta) {
+        console.warn('Received binary without meta');
+        return;
+      }
+      incomingBuffer.push(data);
+      const received = incomingBuffer.reduce((sum, buf) => sum + buf.byteLength, 0);
+      if (received >= incomingFileMeta.size) {
+        try {
+          const blob = new Blob(incomingBuffer, { type: incomingFileMeta.kind || 'application/octet-stream' });
+          const url = URL.createObjectURL(blob);
+          const base = { url, name: incomingFileMeta.name, size: `${(blob.size/1024).toFixed(1)} KB` };
+          let msgType = 'file';
+          if (incomingFileMeta.kind?.startsWith('image/')) msgType = 'image';
+          else if (incomingFileMeta.kind?.startsWith('video/')) msgType = 'video';
+          addMessage('Друг', incomingFileMeta.name || '', msgType, base, { id: incomingFileMeta.id });
+        } catch (err) {
+          console.error('Error processing file:', err);
+        } finally {
+          incomingFileMeta = null;
+          incomingBuffer = [];
+        }
+      }
     }
 
     async function startCamera() {
-      setCallStatus('Запрашиваем камеру...', 'info');
-      startCam.disabled = true;
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: true
-        });
-        cameraStream = stream;
-        localVideo.srcObject = stream;
-        localVideo.muted = true;
-        await localVideo.play().catch(()=>{});
-        attachTracksToPeer(stream);
-        setCallStatus('Камера активна', 'success');
-        startCam.textContent = '🔄 Перезапустить камеру';
-      } catch (err) {
-        console.error('Camera error', err);
-        setCallStatus('Камера недоступна', 'error');
-        addMessage('Вы', 'Ошибка: камера недоступна');
-      } finally {
-        startCam.disabled = false;
-      }
-    }
-
-    async function startScreenShare() {
-      if (screenStream) {
-        stopScreenShare();
-        return;
-      }
-      try {
-        screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-        const videoTrack = screenStream.getVideoTracks()[0];
-        if (videoSender && videoTrack) await videoSender.replaceTrack(videoTrack);
-        localVideo.srcObject = screenStream;
-        screenBtn.textContent = '⏹️ Остановить показ';
-        videoTrack.onended = stopScreenShare;
-        setCallStatus('Показываете экран', 'info');
-      } catch (err) {
-        console.error('Screen share error', err);
-        setCallStatus('Экран не расшарен', 'error');
-      }
-    }
-
-    async function stopScreenShare() {
-      if (!screenStream) return;
-      stopTracks(screenStream);
-      screenStream = null;
-      if (cameraStream) {
-        const camTrack = cameraStream.getVideoTracks()[0];
-        if (videoSender && camTrack) await videoSender.replaceTrack(camTrack);
-        localVideo.srcObject = cameraStream;
-      }
-      screenBtn.textContent = '🖥️ Показать экран';
-      setCallStatus('Камера активна', 'success');
-    }
-
-    screenBtn.addEventListener('click', startScreenShare);
-
-    // WebRTC helpers
-    function slimSdp(sdp) {
-      const lines = sdp.split(/\r?\n/).filter(Boolean);
-      let cand = 0;
-      const filtered = lines.filter(line => {
-        if (line.startsWith('a=candidate')) return cand++ < 2; // оставим 2 кандидата для краткости
-        if (line.startsWith('a=end-of-candidates')) return false;
-        if (line.startsWith('a=ice-options:trickle')) return false;
-        if (line.startsWith('a=extmap-allow-mixed')) return false;
+        localStream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true });
+        localVideo.srcObject = localStream;
+        localVideo.classList.remove('hidden');
+        localVideoContainer.classList.add('hidden');
+        await localVideo.play();
+        initAudioMeter(localStream);
+        hasMediaDevices = true;
+        updateMediaButtons();
+        bindLocalTracks(localStream);
+        showNotification('✅ Камера и микрофон подключены');
         return true;
-      });
-      return filtered.join('\n');
-    }
-
-    function buildShortCode(desc) {
-      const slim = slimSdp(desc.sdp);
-      const data = { t: desc.type === 'offer' ? 'o' : 'a', s: slim };
-      const compressed = pako.deflate(JSON.stringify(data), { level: 9 });
-      let binary = '';
-      for (let i = 0; i < compressed.byteLength; i++) binary += String.fromCharCode(compressed[i]);
-      return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/,'');
-    }
-
-    function parseShortCode(str) {
-      try {
-        const clean = str.trim().replace(/-/g, '+').replace(/_/g, '/');
-        const binary = atob(clean);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        const decompressed = pako.inflate(bytes, { to: 'string' });
-        const data = JSON.parse(decompressed);
-        const type = data.t === 'o' ? 'offer' : 'answer';
-        return new RTCSessionDescription({ type, sdp: data.s });
       } catch (err) {
-        console.error('Parse error', err);
-        setCallStatus('Ошибка кода', 'error');
-        addMessage('Вы', 'Ошибка: код некорректный');
-        return null;
+        console.error('Camera error:', err);
+        hasMediaDevices = false;
+        updateMediaButtons();
+        showNotification('⚠️ Медиаустройства недоступны. Можно подключиться без них.');
+        return false;
       }
     }
 
-    function resetPeer() {
-      if (pc) { try { pc.close(); } catch (e) {} }
-      pc = null;
-      remoteVideo.srcObject = null;
-      remoteLabel.textContent = 'Друг (нет сигнала)';
-      remoteDot.classList.remove('bg-emerald-400');
-      remoteDot.classList.add('bg-rose-400');
-      setCallStatus('Ожидает действий');
+    function updateMediaButtons() {
+      toggleMic.disabled = !hasMediaDevices;
+      toggleCam.disabled = !hasMediaDevices;
+      enableMediaBtn.style.display = hasMediaDevices ? 'none' : 'inline-block';
+      toggleMic.textContent = hasMediaDevices ? (micEnabled ? '🎤 Микрофон' : '🔇 Микрофон') : '🎤 Нет микрофона';
+      toggleCam.textContent = hasMediaDevices ? (camEnabled ? '📷 Камера' : '📷❌ Камера') : '📷 Нет камеры';
     }
 
-    resetCall.addEventListener('click', () => {
-      resetPeer();
-      stopScreenShare();
+    enableMediaBtn.addEventListener('click', async () => { setStatus('Запрос медиа...', 'info'); await startCamera(); });
+
+    toggleMic.addEventListener('click', () => { if (!localStream || !hasMediaDevices) return; micEnabled = !micEnabled; localStream.getAudioTracks().forEach(t => t.enabled = micEnabled); toggleMic.textContent = micEnabled ? '🎤 Микрофон' : '🔇 Микрофон'; toggleMic.classList.toggle('bg-rose-600/50', !micEnabled); });
+    toggleCam.addEventListener('click', () => { if (!localStream || !hasMediaDevices) return; camEnabled = !camEnabled; localStream.getVideoTracks().forEach(t => t.enabled = camEnabled); toggleCam.textContent = camEnabled ? '📷 Камера' : '📷❌ Камера'; toggleCam.classList.toggle('bg-rose-600/50', !camEnabled); });
+
+    shareScreen.addEventListener('click', async () => {
+      if (screenStream) {
+        screenStream.getTracks().forEach(t => t.stop()); 
+        screenStream = null;
+        if (pc) { 
+          const { videoSender } = ensureSenders(pc); 
+          const camTrack = (localStream && localStream.getVideoTracks().length > 0) ? localStream.getVideoTracks()[0] : fallbackVideoTrack; 
+          await videoSender.replaceTrack(camTrack); 
+        }
+        localVideo.srcObject = localStream || new MediaStream([fallbackVideoTrack]);
+        shareScreen.textContent = '🖥️ Экран'; 
+        shareScreen.classList.remove('bg-indigo-600/50'); 
+        addMessage('Вы', 'Демонстрация экрана остановлена');
+      } else {
+        try {
+          screenStream = await navigator.mediaDevices.getDisplayMedia({ video: { cursor: 'always' }, audio: true });
+          if (pc) { 
+            const { videoSender, audioSender } = ensureSenders(pc); 
+            const videoTrack = screenStream.getVideoTracks()[0]; 
+            const audioTrack = screenStream.getAudioTracks()[0]; 
+            if (videoSender && videoTrack) await videoSender.replaceTrack(videoTrack); 
+            if (audioSender && audioTrack) await audioSender.replaceTrack(audioTrack); 
+          }
+          localVideo.srcObject = screenStream; 
+          localVideo.classList.remove('hidden'); 
+          localVideoContainer.classList.add('hidden');
+          shareScreen.textContent = '🖥️ Стоп'; 
+          shareScreen.classList.add('bg-indigo-600/50'); 
+          addMessage('Вы', 'Демонстрация экрана началась');
+          
+          screenStream.getVideoTracks()[0].onended = () => {
+            if (screenStream) shareScreen.click();
+          };
+        } catch (err) { 
+          console.error('Screen share error:', err); 
+          showNotification('❌ Не удалось начать демонстрацию экрана'); 
+        }
+      }
     });
 
-    async function ensureCameraStream() {
-      if (cameraStream) return cameraStream;
-      return startCamera();
+    fullscreenMain.addEventListener('click', () => { const container = remoteVideo.parentElement; if (!document.fullscreenElement) container.requestFullscreen?.(); else document.exitFullscreen?.(); });
+    localVideo.addEventListener('click', () => { const mainSrc = remoteVideo.srcObject; const pipSrc = localVideo.srcObject; remoteVideo.srcObject = pipSrc; localVideo.srcObject = mainSrc; });
+
+    snapBtn.addEventListener('click', () => {
+      const stream = remoteVideo.srcObject || localVideo.srcObject; if (!stream) return;
+      const videoTrack = stream.getVideoTracks()[0]; if (!videoTrack) return;
+      const imageCapture = new ImageCapture(videoTrack);
+      imageCapture.grabFrame().then(bitmap => { 
+        const canvas = document.createElement('canvas'); 
+        canvas.width = bitmap.width; canvas.height = bitmap.height; 
+        const ctx = canvas.getContext('2d'); ctx.drawImage(bitmap, 0, 0); 
+        canvas.toBlob(blob => { 
+          const url = URL.createObjectURL(blob); const a = document.createElement('a'); 
+          a.href = url; a.download = 'snapshot.png'; a.click(); URL.revokeObjectURL(url); 
+          showNotification('📸 Скриншот сохранён'); 
+        }); 
+      }).catch(() => showNotification('❌ Не удалось сделать скриншот')); 
+    });
+
+    recordBtn.addEventListener('click', () => {
+      const stream = remoteVideo.srcObject || localVideo.srcObject; if (!stream) return showNotification('⚠️ Нет видеопотока для записи');
+      if (recorder && recorder.state === 'recording') { 
+        recorder.stop(); 
+        recordBtn.textContent = '⏺️ Запись'; recordBtn.classList.remove('bg-rose-600/60'); 
+        liveBadge.textContent = 'LIVE'; showNotification('✅ Запись сохранена'); 
+      }
+      else { 
+        recordedChunks = []; recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9,opus' }); 
+        recorder.ondataavailable = e => { if (e.data.size) recordedChunks.push(e.data); }; 
+        recorder.onstop = () => { 
+          const blob = new Blob(recordedChunks, { type: 'video/webm' }); 
+          const url = URL.createObjectURL(blob); 
+          const a = document.createElement('a'); a.href = url; a.download = 'recording.webm'; a.click(); URL.revokeObjectURL(url); 
+        }; 
+        recorder.start(); 
+        recordBtn.textContent = '■ Стоп'; recordBtn.classList.add('bg-rose-600/60'); 
+        liveBadge.textContent = 'REC'; showNotification('⏺️ Запись началась'); 
+      }
+    });
+
+    function buildShortCode(desc) {
+      const data = { t: desc.type === 'offer' ? 'o' : 'a', s: desc.sdp }; 
+      const compressed = pako.deflate(JSON.stringify(data), { level: 9 }); 
+      let binary = ''; 
+      for (let i = 0; i < compressed.byteLength; i++) binary += String.fromCharCode(compressed[i]); 
+      return btoa(binary).replace(/=+$/,'').replace(/\+/g,'-').replace(/\//g,'_');
+    }
+    function parseShortCode(str) {
+      try { 
+        const code = str.trim().replace(/-/g,'+').replace(/_/g,'/'); 
+        const padded = code + '='.repeat((4 - code.length % 4) % 4); 
+        const binary = atob(padded); 
+        const bytes = new Uint8Array(binary.length); 
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i); 
+        const decompressed = pako.inflate(bytes, { to: 'string' }); 
+        const data = JSON.parse(decompressed); 
+        return new RTCSessionDescription({ type: data.t === 'o' ? 'offer' : 'answer', sdp: data.s }); 
+      } catch (err) { 
+        console.error('Parse error:', err); 
+        setStatus('Неверный код', 'error'); 
+        return null; 
+      }
     }
 
     function createPeerConnection() {
       pc = new RTCPeerConnection(rtcConfig);
-      pc.onicecandidate = (event) => {
-        if (!event.candidate) console.log('ICE gathering complete');
+      ensureSenders(pc);
+      dataChannel = pc.createDataChannel('chat');
+      setupDataChannel(dataChannel);
+      pc.ondatachannel = (event) => { dataChannel = event.channel; setupDataChannel(dataChannel); };
+      pc.ontrack = (event) => { 
+        if (event.streams[0]) { 
+          remoteVideo.srcObject = event.streams[0]; remoteVideo.play().catch(e => console.error('Play error:', e)); 
+          waitingOverlay.style.display = 'none'; isConnected = true; setStatus('Подключено', 'success'); 
+          showNotification('✅ Друг подключился!'); startTimer(); startStats(); 
+        } 
       };
-      pc.ontrack = (event) => {
-        if (event.streams && event.streams[0]) {
-          remoteVideo.srcObject = event.streams[0];
-          remoteVideo.play().catch(()=>{});
-          remoteLabel.textContent = 'Друг (в эфире)';
-          remoteDot.classList.remove('bg-rose-400');
-          remoteDot.classList.add('bg-emerald-400');
-        }
-      };
-      pc.onconnectionstatechange = () => {
-        if (!pc) return;
-        if (pc.connectionState === 'connected') setCallStatus('✅ Соединение установлено', 'success');
-        if (['failed','disconnected','closed'].includes(pc.connectionState)) setCallStatus('❌ Соединение разорвано', 'error');
+      pc.onconnectionstatechange = () => { 
+        if (!pc) return; 
+        if (pc.connectionState === 'connected') { 
+          setStatus('Подключено', 'success'); waitingOverlay.style.display = 'none'; 
+          isConnected = true; startTimer(); startStats(); 
+        } else if (pc.connectionState === 'connecting') { 
+          setStatus('Подключение...', 'info'); 
+        } else if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) { 
+          setStatus('Отключено', 'error'); waitingOverlay.style.display = 'flex'; 
+          isConnected = false; stopTimer(); stopStats(); 
+        } 
       };
       return pc;
     }
 
-    function attachTracksToPeer(stream) {
-      if (!stream) return;
-      if (!pc) createPeerConnection();
-      stream.getTracks().forEach(t => {
-        const sender = pc.getSenders().find(s => s.track && s.track.kind === t.kind);
-        if (sender) {
-          sender.replaceTrack(t);
-          if (t.kind === 'video') videoSender = sender;
-        } else {
-          const s = pc.addTrack(t, stream);
-          if (t.kind === 'video') videoSender = s;
+    function setupDataChannel(channel) {
+      channel.binaryType = 'arraybuffer';
+      channel.onmessage = (event) => {
+        const payload = event.data;
+        if (typeof payload === 'string') {
+          try {
+            const data = JSON.parse(payload);
+            if (data.type === 'chat') {
+              addMessage('Друг', data.text, 'text', {}, { id: data.id || makeId(), replyPreview: data.replyPreview || null });
+            } else if (data.type === 'file-meta') {
+              incomingFileMeta = data; incomingBuffer = [];
+            } else if (data.type === 'reaction') {
+              applyReaction(data.id, data.emoji);
+            }
+          } catch (e) { console.warn('Bad JSON from dataChannel', e); }
+        } else if (payload instanceof ArrayBuffer) {
+          handleBinary(payload);
         }
-      });
+      };
+      channel.onopen = () => console.log('Data channel open');
+      channel.onclose = () => console.log('Data channel closed');
     }
+
+    function resetPeer() {
+      if (pc) { try { pc.close(); } catch (e) {} }
+      pc = null; dataChannel = null; remoteVideo.srcObject = null;
+      waitingOverlay.style.display = 'flex'; isConnected = false; stopTimer(); stopStats(); 
+      setStatus('Ожидание'); inviteOut.value = ''; inviteIn.value = ''; pendingSignalCode = '';
+      incomingFileMeta = null; incomingBuffer = [];
+    }
+    resetCall.addEventListener('click', resetPeer);
 
     async function createInvite() {
       try {
-        setCallStatus('Создаем код...', 'info');
-        resetPeer();
-        const stream = await ensureCameraStream();
-        if (!stream) return;
-        attachTracksToPeer(stream);
-
-        const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
-        await pc.setLocalDescription(offer);
-        await new Promise(r => setTimeout(r, 1500));
-        const code = buildShortCode(pc.localDescription);
-        inviteOut.value = code;
-        setCallStatus(`Код готов (${code.length} симв.)`, 'success');
-        if (code.length > 200) addMessage('Вы', 'Код длиннее 200 символов. Отправьте как есть — так надежнее.');
-        else addMessage('Вы', 'Код приглашения готов, отправьте другу.');
-      } catch (err) {
-        console.error('Create invite error', err);
-        setCallStatus('Ошибка создания кода', 'error');
-        addMessage('Вы', 'Ошибка создания кода: ' + err.message);
-      }
+        setStatus('Создание...', 'info'); resetPeer();
+        if (!localStream) { await startCamera(); }
+        const peer = createPeerConnection(); 
+        if (localStream) bindLocalTracks(localStream); 
+        else ensureSenders(peer);
+        const offer = await peer.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true }); 
+        await peer.setLocalDescription(offer);
+        await new Promise(r => setTimeout(r, 1200)); 
+        pendingSignalCode = buildShortCode(peer.localDescription); inviteOut.value = pendingSignalCode; 
+        setStatus('Код готов', 'success'); showNotification('📤 Код создан! Отправьте другу');
+      } catch (err) { setStatus('Ошибка', 'error'); showNotification('❌ Ошибка: ' + err.message); }
     }
 
-    async function connectToFriend() {
-      const code = inviteIn.value.trim();
-      if (!code) { setCallStatus('Введите код', 'error'); return; }
-      const remoteDesc = parseShortCode(code);
-      if (!remoteDesc) return;
+    async function connect() {
+      const code = inviteIn.value.trim(); if (!code) { setStatus('Введите код', 'error'); return; }
+      const remoteDesc = parseShortCode(code); if (!remoteDesc) return;
       try {
-        const stream = await ensureCameraStream();
-        if (!stream) return;
-        attachTracksToPeer(stream);
-
-        await pc.setRemoteDescription(remoteDesc);
-
-        if (remoteDesc.type === 'offer') {
-          const answer = await pc.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
-          await pc.setLocalDescription(answer);
-          await new Promise(r => setTimeout(r, 1500));
-          const answerCode = buildShortCode(pc.localDescription);
-          inviteOut.value = answerCode;
-          setCallStatus(`Отправьте ответ (${answerCode.length} симв.)`, 'info');
-          addMessage('Вы', 'Отправьте этот ответ обратно инициатору.');
-        } else {
-          setCallStatus('Ожидаем соединение...', 'info');
+        setStatus('Подключение...', 'info'); 
+        if (!localStream) { await startCamera(); }
+        if (!pc) { 
+          const peer = createPeerConnection(); 
+          if (localStream) bindLocalTracks(localStream); 
+          else ensureSenders(peer); 
         }
-      } catch (err) {
-        console.error('Connect error', err);
-        setCallStatus('Ошибка подключения', 'error');
-        addMessage('Вы', 'Ошибка подключения: ' + err.message);
-      }
+        await pc.setRemoteDescription(remoteDesc);
+        if (remoteDesc.type === 'offer') {
+          const answer = await pc.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true }); await pc.setLocalDescription(answer);
+          await new Promise(r => setTimeout(r, 1200)); pendingSignalCode = buildShortCode(pc.localDescription); inviteOut.value = pendingSignalCode; 
+          setStatus('Отправьте код ответа', 'info'); showNotification('📤 Код ответа готов! Отправьте другу');
+        }
+      } catch (err) { setStatus('Ошибка', 'error'); showNotification('❌ Ошибка: ' + err.message); }
     }
 
-    async function copyToClipboard(el) {
-      if (!el.value) return;
-      try { await navigator.clipboard.writeText(el.value); setCallStatus('Скопировано', 'success'); } catch (err) { setCallStatus('Копировать не удалось', 'error'); }
-    }
-
-    // UI controls
-    swapBtn.addEventListener('click', () => {
-      if (localPip.classList.contains('!w-full')) {
-        localPip.classList.remove('!w-full', '!h-full', '!static', 'aspect-auto');
-        localPip.classList.add('absolute', 'bottom-4', 'right-4', 'w-32', 'sm:w-48', 'aspect-video');
-      } else {
-        localPip.classList.remove('absolute', 'bottom-4', 'right-4', 'w-32', 'sm:w-48', 'aspect-video');
-        localPip.classList.add('!w-full', '!h-full', '!static', 'aspect-auto');
-      }
-    });
-
-    fullMainBtn.addEventListener('click', () => {
-      if (document.fullscreenElement) document.exitFullscreen();
-      else callStage.requestFullscreen?.();
-    });
-
-    fullLocalBtn.addEventListener('click', () => {
-      if (document.fullscreenElement) document.exitFullscreen();
-      else localPip.requestFullscreen?.();
-    });
-
+    async function copyToClipboard() { if (!inviteOut.value) return; try { await navigator.clipboard.writeText(inviteOut.value); setStatus('Скопировано!', 'success'); } catch (err) { setStatus('Ошибка копирования', 'error'); } }
     createOfferBtn.addEventListener('click', createInvite);
-    connectBtn.addEventListener('click', connectToFriend);
-    copyInvite.addEventListener('click', () => copyToClipboard(inviteOut));
-    startCam.addEventListener('click', startCamera);
+    connectBtn.addEventListener('click', connect);
+    copyInvite.addEventListener('click', copyToClipboard);
 
-    // Seed initial info
-    addMessage('Вы', 'Нажмите "Создать код" и отправьте его другу. Затем ждите ответный код.');
-    startCamera();
+    function startTimer() { if (timerInterval) return; callStartTime = Date.now(); timerInterval = setInterval(() => { const diff = Date.now() - callStartTime; const m = String(Math.floor(diff / 60000)).padStart(2,'0'); const s = String(Math.floor((diff % 60000) / 1000)).padStart(2,'0'); callTimer.textContent = `${m}:${s}`; }, 1000); }
+    function stopTimer() { clearInterval(timerInterval); timerInterval = null; callTimer.textContent = '00:00'; }
+
+    async function startStats() {
+      stopStats();
+      statsInterval = setInterval(async () => {
+        if (!pc) return;
+        try {
+          const stats = await pc.getStats(null); let bitrate = 0, packetsLost = 0, packetsTotal = 0;
+          stats.forEach(report => {
+            if (report.type === 'outbound-rtp' && !report.isRemote && report.mediaType === 'video') {
+              if (report.bytesSentPrev !== undefined) { 
+                const deltaBytes = report.bytesSent - report.bytesSentPrev; 
+                const deltaTime = report.timestamp - report.timestampPrev; 
+                bitrate = Math.floor((deltaBytes * 8) / (deltaTime / 1000)); 
+              }
+              report.bytesSentPrev = report.bytesSent; report.timestampPrev = report.timestamp;
+            }
+            if (report.type === 'remote-inbound-rtp' && report.mediaType === 'video') { packetsLost = report.packetsLost || 0; packetsTotal = (report.packetsReceived || 0) + packetsLost; }
+          });
+          const loss = packetsTotal ? Math.round((packetsLost / packetsTotal) * 100) : 0; 
+          const kbps = bitrate ? `${(bitrate/1000).toFixed(1)} kbps` : '—';
+          connectionQuality.textContent = `Скорость: ${kbps} | Потери: ${loss}%`;
+          if (loss > 10 || bitrate < 300000) connectionQuality.className = 'px-3 py-1 rounded-full text-xs bg-rose-500/20 border border-rose-400/50 text-rose-100';
+          else if (loss > 3) connectionQuality.className = 'px-3 py-1 rounded-full text-xs bg-amber-500/20 border border-amber-400/50 text-amber-100';
+          else connectionQuality.className = 'px-3 py-1 rounded-full text-xs bg-emerald-500/20 border border-emerald-400/50 text-emerald-100';
+        } catch (e) { console.warn('Stats error', e); }
+      }, 2000);
+    }
+    function stopStats() { clearInterval(statsInterval); statsInterval = null; connectionQuality.textContent = 'Скорость: —'; }
+
+    function initAudioMeter(stream) {
+      const ctx = new AudioContext(); const analyser = ctx.createAnalyser(); analyser.fftSize = 256; 
+      const source = ctx.createMediaStreamSource(stream); source.connect(analyser); 
+      const dataArray = new Uint8Array(analyser.frequencyBinCount); 
+      const update = () => { analyser.getByteFrequencyData(dataArray); let sum = 0; for (let i = 0; i < dataArray.length; i++) sum += dataArray[i]; const level = Math.min(100, Math.max(3, Math.floor((sum / dataArray.length) / 2))); levelEl.style.height = `${level}%`; requestAnimationFrame(update); }; 
+      update();
+    }
+
+    function openViewer(content) { viewerBody.innerHTML = ''; viewerBody.appendChild(content); viewer.classList.add('show'); }
+    viewerClose.addEventListener('click', () => viewer.classList.remove('show'));
+    viewer.addEventListener('click', (e) => { if (e.target === viewer) viewer.classList.remove('show'); });
+    chat.addEventListener('click', (e) => {
+      const img = e.target.closest('img[data-full]');
+      if (img) { const big = document.createElement('img'); big.src = img.dataset.full; openViewer(big); }
+    });
+
+    let tipTimer = null;
+    document.addEventListener('mouseover', (e) => {
+      const target = e.target.closest('[data-tip]'); if (!target) return;
+      clearTimeout(tipTimer);
+      tipTimer = setTimeout(() => {
+        const text = target.getAttribute('data-tip'); tooltip.textContent = text; tooltip.classList.add('show');
+        const rect = target.getBoundingClientRect(); tooltip.style.left = Math.max(8, rect.left + rect.width/2 - tooltip.offsetWidth/2) + 'px'; tooltip.style.top = rect.top - tooltip.offsetHeight - 8 + 'px';
+      }, 1000);
+    });
+    document.addEventListener('mouseout', () => { if (tipTimer) clearTimeout(tipTimer); tooltip.classList.remove('show'); });
+
+    updateMediaButtons(); setStatus('Ожидание');
   </script>
 </body>
 </html>
